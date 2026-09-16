@@ -21,7 +21,10 @@ export async function POST(request: NextRequest, context: { params: Promise<{ de
         force: parsed.success ? parsed.data.force : false,
         onProgress: (message) => emit({ type: 'progress', message }),
       });
-      emit({ type: 'done', payload: { courses: result.courses, fromCache: result.fromCache } });
+      emit({
+        type: 'done',
+        payload: { courses: result.courses, fromCache: result.fromCache, empty: result.empty },
+      });
     } catch (error) {
       if (error instanceof PipelineError) {
         emit({

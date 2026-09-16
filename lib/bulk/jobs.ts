@@ -33,7 +33,8 @@ export interface BulkJobState {
 
 /**
  * Picks the universities a job should touch: inside the ranking window, and
- * either holding no course data or holding data older than the cutoff.
+ * holding no course data, data older than the cutoff, or — when asked — current
+ * data with departments that were never filled in.
  */
 async function selectCandidates(params: BulkParams): Promise<Array<{ id: string }>> {
   const admin = createAdminClient();
@@ -41,7 +42,9 @@ async function selectCandidates(params: BulkParams): Promise<Array<{ id: string 
 
   const [colleges, stats] = await Promise.all([
     admin.from('colleges').select('id, rank').order('rank', { ascending: true, nullsFirst: false }),
-    admin.from('college_stats').select('college_id, course_count, last_scraped_at'),
+    admin
+      .from('college_stats')
+      .select('college_id, course_count, last_scraped_at, department_count, departments_sourced'),
   ]);
 
   const statsById = new Map((stats.data ?? []).map((row) => [row.college_id, row]));
@@ -54,7 +57,12 @@ async function selectCandidates(params: BulkParams): Promise<Array<{ id: string 
       const stat = statsById.get(college.id);
       if (!stat?.course_count) return true;
       if (!stat.last_scraped_at) return true;
-      return new Date(stat.last_scraped_at).getTime() < cutoff;
+      if (new Date(stat.last_scraped_at).getTime() < cutoff) return true;
+      // Current data, but some departments were never filled in.
+      return (
+        params.includePartial &&
+        (stat.departments_sourced ?? 0) < (stat.department_count ?? 0)
+      );
     })
     .slice(0, params.maxColleges)
     .map((college) => ({ id: college.id }));

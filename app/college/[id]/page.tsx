@@ -5,7 +5,7 @@ import { notFound } from 'next/navigation';
 import { DepartmentBrowser } from '@/components/college/department-browser';
 import { Breadcrumbs } from '@/components/layout/breadcrumbs';
 import { Badge } from '@/components/ui/badge';
-import { CACHE_TTL_DAYS, getCollege, isStale, listDepartments } from '@/lib/db/queries';
+import { getCollege, listDepartments } from '@/lib/db/queries';
 
 export async function generateMetadata({
   params,
@@ -23,7 +23,9 @@ export default async function CollegePage({ params }: { params: Promise<{ id: st
   if (!college) notFound();
 
   const departments = await listDepartments(id);
-  const needsScrape = departments.length === 0 || isStale(departments[0].scraped_at, CACHE_TTL_DAYS);
+  // Use whatever is already in the database, however old — only a college we've
+  // never read gets scraped automatically. Refreshing is an explicit action.
+  const needsScrape = departments.length === 0;
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-10">
@@ -61,7 +63,7 @@ export default async function CollegePage({ params }: { params: Promise<{ id: st
 
         <p className="text-muted-foreground mt-4 max-w-2xl text-sm">
           Pick a department to see its course list. We read these straight from the
-          university&apos;s own catalog and cache them for {CACHE_TTL_DAYS} days.
+          university&apos;s own catalog once and keep them — use Re-scrape to refresh.
         </p>
       </header>
 

@@ -56,7 +56,14 @@ interface JobState {
   error: string | null;
   createdAt: string;
   finishedAt: string | null;
-  params: { rankFrom: number; rankTo: number; staleDays: number; maxColleges: number; departmentLimit: number };
+  params: {
+    rankFrom: number;
+    rankTo: number;
+    staleDays: number;
+    maxColleges: number;
+    departmentLimit: number | null;
+    includePartial?: boolean;
+  };
   items: JobItem[];
 }
 
@@ -94,6 +101,7 @@ export function selectCandidates(
   staleDays: number,
   rankFrom = 1,
   rankTo = 200,
+  includePartial = true,
 ): AdminCollegeRow[] {
   const cutoff = Date.now() - staleDays * 24 * 60 * 60 * 1000;
   return colleges.filter((college) => {
@@ -102,7 +110,8 @@ export function selectCandidates(
 
     if (college.courseCount === 0) return true;
     if (!college.lastScrapedAt) return true;
-    return new Date(college.lastScrapedAt).getTime() < cutoff;
+    if (new Date(college.lastScrapedAt).getTime() < cutoff) return true;
+    return includePartial && college.departmentsSourced < college.departmentCount;
   });
 }
 
@@ -119,7 +128,9 @@ export function BulkDialog({
   const [rankFrom, setRankFrom] = useState(1);
   const [rankTo, setRankTo] = useState(200);
   const [maxColleges, setMaxColleges] = useState(10);
+  const [allDepartments, setAllDepartments] = useState(true);
   const [departmentLimit, setDepartmentLimit] = useState(3);
+  const [includePartial, setIncludePartial] = useState(true);
 
   const [job, setJob] = useState<JobState | null>(null);
   const [showConfig, setShowConfig] = useState(true);
@@ -136,8 +147,9 @@ export function BulkDialog({
 
   const rangeValid = rankFrom <= rankTo;
   const candidates = useMemo(
-    () => (rangeValid ? selectCandidates(colleges, staleDays, rankFrom, rankTo) : []),
-    [colleges, staleDays, rankFrom, rankTo, rangeValid],
+    () =>
+      rangeValid ? selectCandidates(colleges, staleDays, rankFrom, rankTo, includePartial) : [],
+    [colleges, staleDays, rankFrom, rankTo, rangeValid, includePartial],
   );
   const willRun = Math.min(candidates.length, maxColleges);
 
@@ -273,7 +285,14 @@ export function BulkDialog({
       const response = await fetch('/api/admin/bulk-jobs', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ staleDays, rankFrom, rankTo, maxColleges, departmentLimit }),
+        body: JSON.stringify({
+          staleDays,
+          rankFrom,
+          rankTo,
+          maxColleges,
+          departmentLimit: allDepartments ? null : departmentLimit,
+          includePartial,
+        }),
       });
       const body = (await response.json()) as { job?: JobState; error?: string };
       if (!response.ok || !body.job) throw new Error(body.error ?? `Server responded ${response.status}`);
@@ -281,7 +300,8 @@ export function BulkDialog({
       console.info(
         '[CourseForge] bulk job started',
         body.job.id,
-        `ranks ${rankFrom}-${rankTo} · stale ${staleDays}d · max ${maxColleges} · ${departmentLimit} depts`,
+        `ranks ${rankFrom}-${rankTo} · stale ${staleDays}d · max ${maxColleges} · ` +
+          `${allDepartments ? 'all' : departmentLimit} depts · partial ${includePartial}`,
       );
 
       setJob(body.job);
@@ -428,23 +448,57 @@ export function BulkDialog({
 
               <div className="space-y-1.5">
                 <Label htmlFor="dept-limit">Departments per university</Label>
-                <Input
-                  id="dept-limit"
-                  type="number"
-                  min={0}
-                  max={25}
-                  value={departmentLimit}
-                  onChange={(e) => setDepartmentLimit(Math.min(25, Math.max(0, Number(e.target.value) || 0)))}
-                />
-                <p className="text-muted-foreground text-xs">0 scrapes departments only, no course lists.</p>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={allDepartments}
+                    onChange={(e) => setAllDepartments(e.target.checked)}
+                    className="accent-primary size-4"
+                  />
+                  All departments that still need courses
+                </label>
+                {allDepartments ? null : (
+                  <Input
+                    id="dept-limit"
+                    type="number"
+                    min={0}
+                    max={1000}
+                    value={departmentLimit}
+                    aria-label="Departments per university"
+                    onChange={(e) =>
+                      setDepartmentLimit(Math.min(1000, Math.max(0, Number(e.target.value) || 0)))
+                    }
+                  />
+                )}
+                <p className="text-muted-foreground text-xs">
+                  Departments that already have courses are skipped either way.
+                  {allDepartments ? '' : ' 0 reads the department list only.'}
+                </p>
               </div>
             </div>
+
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={includePartial}
+                onChange={(e) => setIncludePartial(e.target.checked)}
+                className="accent-primary mt-0.5 size-4"
+              />
+              <span>
+                Include partly retrieved universities
+                <span className="text-muted-foreground block text-xs">
+                  Universities with current data but some departments still empty — typically from
+                  an earlier run limited to a few departments.
+                </span>
+              </span>
+            </label>
 
             <div className="bg-muted/40 rounded-lg border p-3 text-sm">
               <p>
                 <strong className="tabular-nums">{candidates.length}</strong> universities match — ranked{' '}
-                {rankFrom}–{rankTo}, with no course data or data older than {staleDays} day
-                {staleDays === 1 ? '' : 's'}.
+                {rankFrom}–{rankTo}, with no course data, data older than {staleDays} day
+                {staleDays === 1 ? '' : 's'}
+                {includePartial ? ', or departments still empty' : ''}.
               </p>
               <p className="text-muted-foreground mt-1">
                 {candidates.length > willRun ? (

@@ -58,8 +58,9 @@ export default async function CoursePage({ params }: { params: Promise<{ courseI
     getFavoriteIds(user?.id ?? null),
   ]);
 
-  // Anything missing means the profile hasn't been built for this course yet.
-  const needsBuild = !course.detail_scraped_at || sections.length === 0;
+  // Sections are what a test is generated from. If they exist the course is ready,
+  // and nothing is re-fetched from the catalog just because the visitor arrived.
+  const needsBuild = sections.length === 0;
   const aiEnabled = isAiConfigured();
 
   return (

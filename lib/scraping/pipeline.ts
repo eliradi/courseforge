@@ -4,7 +4,6 @@ import { generateCourseSummary } from '@/lib/ai/summary';
 import { withUsageContext } from '@/lib/ai/usage';
 import { recordOperationRun } from '@/lib/db/operation-runs';
 import {
-  CACHE_TTL_DAYS,
   getCollege,
   getCourseContext,
   getDepartment,
@@ -13,6 +12,7 @@ import {
   listDepartments,
   listSections,
   listTextbooks,
+  markCoursesChecked,
   upsertSections,
   replaceTextbooks,
   saveCourseDetail,
@@ -151,10 +151,12 @@ async function ensureDepartmentsInner(
   const college = await getCollege(collegeId);
   if (!college) throw new PipelineError('That college no longer exists.', false);
 
+  // Unforced calls come from students browsing: anything already cached is
+  // served as-is, whatever its age. Only forced calls (Re-scrape, admin
+  // retrieval, bulk jobs) go back to the catalog.
   if (!options.force && !options.manualUrl) {
     const cached = await listDepartments(collegeId);
-    const fresh = cached.length > 0 && !isStale(cached[0].scraped_at, CACHE_TTL_DAYS);
-    if (fresh) {
+    if (cached.length > 0) {
       return {
         departments: cached,
         platform: (college.catalog_platform as CatalogPlatform | null) ?? 'generic',
@@ -200,10 +202,20 @@ async function ensureDepartmentsInner(
 
 /* --------------------------------------------------------------- courses --- */
 
+export interface CoursesResult {
+  courses: Course[];
+  fromCache: boolean;
+  /**
+   * The catalog was read and lists no current courses for this department —
+   * typically a retired code whose courses are all inactive. Not an error.
+   */
+  empty: boolean;
+}
+
 export async function ensureCourses(
   departmentId: string,
   options: { force?: boolean; onProgress?: Progress } = {},
-): Promise<{ courses: Course[]; fromCache: boolean }> {
+): Promise<CoursesResult> {
   const department = await getDepartment(departmentId);
   if (!department) throw new PipelineError('That department no longer exists.', false);
 
@@ -215,14 +227,20 @@ export async function ensureCourses(
 async function ensureCoursesInner(
   departmentId: string,
   options: { force?: boolean; onProgress?: Progress },
-): Promise<{ courses: Course[]; fromCache: boolean }> {
+): Promise<CoursesResult> {
   const department = await getDepartment(departmentId);
   if (!department) throw new PipelineError('That department no longer exists.', false);
 
+  // As above: cached courses are served whatever their age unless forced — and
+  // a department we already checked and found empty stays empty until someone
+  // deliberately refreshes it.
   if (!options.force) {
     const cached = await listCourses(departmentId);
-    if (cached.length > 0 && !isStale(cached[0].scraped_at, CACHE_TTL_DAYS)) {
-      return { courses: cached, fromCache: true };
+    if (cached.length > 0) {
+      return { courses: cached, fromCache: true, empty: false };
+    }
+    if (department.courses_scraped_at) {
+      return { courses: [], fromCache: true, empty: true };
     }
   }
 
@@ -248,18 +266,20 @@ async function ensureCoursesInner(
     throw await toPipelineError(error, department.catalog_url ?? catalog.catalogUrl);
   }
 
+  // The catalog answered. Record that, whatever it said.
+  await markCoursesChecked(departmentId);
+
   if (!courses.length) {
-    throw new PipelineError(
-      `No courses were listed for ${department.code} on ${college.name}'s catalog. The department page may have moved.`,
-      true,
-      await captureScreenshot(department.catalog_url ?? catalog.catalogUrl),
+    options.onProgress?.(
+      `${department.code}: the catalog lists no current courses — recorded as empty`,
     );
+    return { courses: [], fromCache: false, empty: true };
   }
 
   options.onProgress?.(`Saving ${courses.length} courses`);
   const saved = await upsertCourses(departmentId, courses);
 
-  return { courses: saved.sort(byCourseNumber), fromCache: false };
+  return { courses: saved.sort(byCourseNumber), fromCache: false, empty: false };
 }
 
 export function byCourseNumber(a: Course, b: Course): number {
@@ -327,7 +347,11 @@ async function ensureCourseProfileInner(
   const { department, college } = context;
 
   // 1. Full catalog detail for this one course.
-  const needsDetail = options.force || !course.detail_scraped_at || isStale(course.detail_scraped_at);
+  // The course row from the department listing already carries its description,
+  // credits and prerequisites. Only go back to the catalog when forced, or when
+  // the course has no content at all to build a profile from.
+  const hasContent = Boolean(course.description?.trim() || course.raw_scraped_content?.trim());
+  const needsDetail = options.force || (!course.detail_scraped_at && !hasContent);
   if (needsDetail && isScraperConfigured()) {
     options.onProgress?.('Reading the full catalog entry');
     try {

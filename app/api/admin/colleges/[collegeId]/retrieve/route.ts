@@ -5,7 +5,8 @@ import { getAdminUser } from '@/lib/auth/admin';
 import { withUsageContext } from '@/lib/ai/usage';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { discoverCatalog } from '@/lib/scraping/discover-catalog';
-import { ensureCourses, ensureDepartments, PipelineError } from '@/lib/scraping/pipeline';
+import { PipelineError } from '@/lib/scraping/pipeline';
+import { describeRetrieval, retrieveMissingCourses } from '@/lib/scraping/retrieve-missing';
 import { withTrace } from '@/lib/scraping/trace';
 import { recordOperationRun } from '@/lib/db/operation-runs';
 import { sseResponse, type SseEvent } from '@/lib/sse';
@@ -16,7 +17,8 @@ export const dynamic = 'force-dynamic';
 
 const BodySchema = z.object({
   mode: z.enum(['probe', 'retrieve']),
-  departmentLimit: z.number().int().min(0).max(25).default(3),
+  /** `null` fetches every department that is still missing courses. */
+  departmentLimit: z.number().int().min(0).max(1000).nullable().default(null),
 });
 
 /**
@@ -115,60 +117,35 @@ export async function POST(
             };
           }
 
-          send({ level: 'step', message: 'Discovering catalog and scraping departments' });
-          const { departments, platform, catalogUrl } = await ensureDepartments(collegeId, {
-            force: true,
+          // Fill in what's missing only — departments that already have courses
+          // in the database are not fetched again.
+          send({ level: 'step', message: 'Retrieving departments and courses that are missing' });
+          const result = await retrieveMissingCourses(collegeId, {
+            staleDays: null,
+            departmentLimit,
             onProgress: (message) => send({ level: 'step', message }),
           });
 
+          const { data: refreshed } = await admin
+            .from('colleges')
+            .select('catalog_url, catalog_platform')
+            .eq('id', collegeId)
+            .maybeSingle();
+
+          const summary = describeRetrieval(result);
           send({
-            level: 'success',
-            message: `${departments.length} departments`,
-            detail: `${platform} adapter · ${catalogUrl}`,
+            level: result.failed && !result.fetched ? 'warn' : 'success',
+            message: summary,
+            detail: refreshed?.catalog_url ?? undefined,
           });
 
-          let courseCount = 0;
-          const target = departments.slice(0, departmentLimit);
-          if (!target.length) {
-            send({ level: 'info', message: 'No course lists requested (department limit is 0)' });
-          }
-
-          for (const [index, department] of target.entries()) {
-            send({
-              level: 'step',
-              message: `[${index + 1}/${target.length}] ${department.code} — ${department.name}`,
-              detail: department.catalog_url ?? undefined,
-            });
-            try {
-              const { courses } = await ensureCourses(department.id, {
-                force: true,
-                onProgress: (message) => send({ level: 'step', message }),
-              });
-              courseCount += courses.length;
-              send({
-                level: 'success',
-                message: `${department.code}: ${courses.length} courses`,
-                detail: courses
-                  .slice(0, 3)
-                  .map((c) => `${c.course_number} ${c.title}`)
-                  .join(' · '),
-              });
-            } catch (error) {
-              send({
-                level: 'error',
-                message: `${department.code} failed`,
-                detail: error instanceof Error ? error.message : String(error),
-              });
-            }
-          }
-
           return {
-            ok: true,
-            summary: `${departments.length} departments · ${courseCount} courses`,
-            platform,
-            catalogUrl,
-            departmentCount: departments.length,
-            courseCount,
+            ok: !(result.failed && !result.fetched),
+            summary,
+            platform: result.platform ?? refreshed?.catalog_platform ?? undefined,
+            catalogUrl: refreshed?.catalog_url ?? undefined,
+            departmentCount: result.departmentCount,
+            courseCount: result.coursesFetched,
           };
         }),
       );

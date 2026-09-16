@@ -212,6 +212,19 @@ export async function upsertCourses(
   return saved;
 }
 
+/**
+ * Records that a department's course list was read successfully — including
+ * when it held no courses, so an empty department isn't mistaken for one that
+ * was never sourced.
+ */
+export async function markCoursesChecked(departmentId: string): Promise<void> {
+  const admin = createAdminClient();
+  await admin
+    .from('departments')
+    .update({ courses_scraped_at: new Date().toISOString() })
+    .eq('id', departmentId);
+}
+
 export async function saveCourseDetail(courseId: string, detail: CourseDetailRaw): Promise<void> {
   const admin = createAdminClient();
   const { error } = await admin

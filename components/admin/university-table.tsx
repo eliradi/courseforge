@@ -31,7 +31,10 @@ export function UniversityTable({ colleges }: { colleges: AdminCollegeRow[] }) {
   const [bulkOpen, setBulkOpen] = useState(false);
 
   // Shown on the bulk button so the size of the job is visible before opening.
-  const staleCount = useMemo(() => selectCandidates(colleges, 30).length, [colleges]);
+  const staleCount = useMemo(
+    () => selectCandidates(colleges, 30, 1, 200, true).length,
+    [colleges],
+  );
 
   const rows = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -96,7 +99,9 @@ export function UniversityTable({ colleges }: { colleges: AdminCollegeRow[] }) {
               <TableHead className="w-14">Rank</TableHead>
               <TableHead>University</TableHead>
               <TableHead>Retrieval method</TableHead>
-              <TableHead className="text-right">Depts</TableHead>
+              <TableHead className="text-right" title="Departments sourced / all departments">
+                Depts
+              </TableHead>
               <TableHead className="text-right">Courses</TableHead>
               <TableHead className="text-right">Tests</TableHead>
               <TableHead className="text-right">Taken</TableHead>
@@ -143,7 +148,26 @@ export function UniversityTable({ colleges }: { colleges: AdminCollegeRow[] }) {
                   </TableCell>
 
                   <TableCell className="text-right text-xs tabular-nums">
-                    {college.departmentCount || '—'}
+                    {college.departmentCount ? (
+                      <span
+                        title={
+                          `${college.departmentsSourced} of ${college.departmentCount} departments sourced` +
+                          ` · ${college.departmentsWithCourses} have courses` +
+                          (college.departmentsSourced > college.departmentsWithCourses
+                            ? ` · ${college.departmentsSourced - college.departmentsWithCourses} list no current courses`
+                            : '')
+                        }
+                        className={cn(
+                          'cursor-help',
+                          college.departmentsSourced < college.departmentCount &&
+                            'text-amber-700 dark:text-amber-400',
+                        )}
+                      >
+                        {college.departmentsSourced}/{college.departmentCount}
+                      </span>
+                    ) : (
+                      '—'
+                    )}
                   </TableCell>
                   <TableCell className="text-right text-xs tabular-nums">
                     {college.courseCount.toLocaleString() || '—'}

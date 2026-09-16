@@ -11,8 +11,11 @@ import { Button } from '@/components/ui/button';
 import { useScrapeStream } from '@/hooks/use-scrape-stream';
 
 /**
- * Fills in the parts of a course profile that need scraping or AI — detail,
- * summary, textbooks and sections — showing each step as it happens.
+ * Fills in whatever a course profile is missing — summary, textbooks, sections —
+ * showing each step as it happens.
+ *
+ * Never forced: data already in the database is kept, so pressing this to get a
+ * course ready for a test doesn't re-scrape the catalog entry.
  */
 export function CourseBuilder({
   courseId,
@@ -53,7 +56,7 @@ export function CourseBuilder({
         <AlertTitle>We couldn&apos;t finish this profile</AlertTitle>
         <AlertDescription className="space-y-3">
           <p>{stream.error.message}</p>
-          <Button size="sm" variant="outline" onClick={() => void build({ force: true })}>
+          <Button size="sm" variant="outline" onClick={() => void build({})}>
             <RefreshCw className="size-3.5" />
             Try again
           </Button>
@@ -63,7 +66,7 @@ export function CourseBuilder({
   }
 
   return (
-    <Button variant="outline" size="sm" onClick={() => void build({ force: true })}>
+    <Button variant="outline" size="sm" onClick={() => void build({})}>
       <Wand2 className="size-3.5" />
       {label}
     </Button>

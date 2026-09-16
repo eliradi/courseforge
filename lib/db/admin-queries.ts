@@ -152,6 +152,10 @@ export interface AdminCollegeRow {
   source: CatalogSource | null;
   catalogError: string | null;
   departmentCount: number;
+  /** Departments that actually have courses stored. */
+  departmentsWithCourses: number;
+  /** Departments whose course list has been read — including empty ones. */
+  departmentsSourced: number;
   courseCount: number;
   testSetCount: number;
   attemptsTaken: number;
@@ -209,6 +213,8 @@ export async function listAdminColleges(): Promise<AdminCollegeRow[]> {
       source: college.catalog_source as CatalogSource | null,
       catalogError: college.catalog_error,
       departmentCount: stat?.department_count ?? 0,
+      departmentsWithCourses: stat?.departments_with_courses ?? 0,
+      departmentsSourced: stat?.departments_sourced ?? 0,
       courseCount: stat?.course_count ?? 0,
       testSetCount: stat?.test_set_count ?? 0,
       attemptsTaken: stat?.attempts_taken ?? 0,

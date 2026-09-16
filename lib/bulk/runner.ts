@@ -3,7 +3,7 @@ import 'server-only';
 import { withUsageContext } from '@/lib/ai/usage';
 import { recordOperationRun } from '@/lib/db/operation-runs';
 import { discoverCatalog } from '@/lib/scraping/discover-catalog';
-import { ensureCourses, ensureDepartments } from '@/lib/scraping/pipeline';
+import { describeRetrieval, retrieveMissingCourses } from '@/lib/scraping/retrieve-missing';
 import { withTrace, type TraceEvent } from '@/lib/scraping/trace';
 import { createAdminClient } from '@/lib/supabase/admin';
 
@@ -12,7 +12,10 @@ export interface BulkParams {
   rankFrom: number;
   rankTo: number;
   maxColleges: number;
-  departmentLimit: number;
+  /** Most departments to fetch per university; `null` fetches every one that needs it. */
+  departmentLimit: number | null;
+  /** Also pick universities whose data is current but has empty departments. */
+  includePartial: boolean;
 }
 
 /** A job whose heartbeat is older than this has lost its runner. */
@@ -176,7 +179,10 @@ export async function runBulkJob(jobId: string): Promise<void> {
     trace({
       level: 'info',
       message: job.processed > 0 ? `Resuming — ${remaining.length} universities left` : `${remaining.length} universities to process`,
-      detail: `Ranks ${params.rankFrom}–${params.rankTo} · stale after ${params.staleDays} days · ${params.departmentLimit} departments each`,
+      detail:
+        `Ranks ${params.rankFrom}–${params.rankTo} · stale after ${params.staleDays} days · ` +
+        `${params.departmentLimit === null ? 'all' : params.departmentLimit} departments each` +
+        (params.includePartial ? ' · including partly retrieved' : ''),
     });
 
     let { processed, succeeded, failed } = job;
@@ -332,43 +338,29 @@ async function processCollege(
 
         const retrievalStartedAt = new Date();
         try {
-          const { departments } = await ensureDepartments(college.id, {
-            force: true,
+          // Only what's missing: departments that already hold current courses
+          // are left alone.
+          const result = await retrieveMissingCourses(college.id, {
+            staleDays: params.staleDays,
+            departmentLimit: params.departmentLimit,
             onProgress: (message) => trace({ level: 'step', message }),
+            shouldStop,
           });
 
-          let courses = 0;
-          for (const department of departments.slice(0, params.departmentLimit)) {
-            if (await shouldStop()) break;
-            try {
-              const result = await ensureCourses(department.id, {
-                force: true,
-                onProgress: (message) => trace({ level: 'step', message }),
-              });
-              courses += result.courses.length;
-              trace({
-                level: 'success',
-                message: `${college.name} · ${department.code}: ${result.courses.length} courses`,
-              });
-            } catch (error) {
-              trace({
-                level: 'error',
-                message: `${college.name} · ${department.code} failed`,
-                detail: error instanceof Error ? error.message : String(error),
-              });
-            }
-          }
+          const summary = describeRetrieval(result);
+          const ok = result.failed < Math.max(1, result.fetched + result.failed);
 
-          const summary = `${departments.length} departments · ${courses} courses`;
           const retrieval = await recordOperationRun({
             kind: 'course_retrieval',
             scope: { collegeId: college.id },
             startedAt: retrievalStartedAt,
-            ok: true,
+            ok,
             summary,
           });
           costUsd += retrieval.costUsd;
-          return { ok: true, summary, costUsd };
+
+          trace({ level: ok ? 'success' : 'warn', message: `${college.name}: ${summary}` });
+          return { ok, summary, costUsd };
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
           const retrieval = await recordOperationRun({

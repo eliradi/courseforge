@@ -20,24 +20,29 @@ import type { Course, Department } from '@/lib/supabase/types';
 interface CoursesPayload {
   courses: Course[];
   fromCache: boolean;
+  empty?: boolean;
 }
 
 export function CourseList({
   department,
   initialCourses,
   needsScrape,
+  checkedEmpty,
   favoriteCourseIds,
   signedIn,
 }: {
   department: Department;
   initialCourses: Course[];
   needsScrape: boolean;
+  /** The catalog was read and lists no current courses for this department. */
+  checkedEmpty: boolean;
   favoriteCourseIds: string[];
   signedIn: boolean;
 }) {
   const favorites = useMemo(() => new Set(favoriteCourseIds), [favoriteCourseIds]);
   const stream = useScrapeStream<CoursesPayload>(`/api/departments/${department.id}/courses`);
   const [courses, setCourses] = useState(initialCourses);
+  const [isEmpty, setIsEmpty] = useState(checkedEmpty);
   const [query, setQuery] = useState('');
 
   const started = useRef(false);
@@ -52,6 +57,8 @@ export function CourseList({
     const result = await stream.run(body);
     if (!result) return;
     setCourses(result.courses);
+    setIsEmpty(Boolean(result.empty));
+    if (result.empty) return;
     if (!result.fromCache) {
       toast.success(`Found ${result.courses.length} courses in ${department.code}`);
     }
@@ -94,6 +101,22 @@ export function CourseList({
           </Button>
         </AlertDescription>
       </Alert>
+    );
+  }
+
+  if (!courses.length && isEmpty) {
+    return (
+      <EmptyState
+        icon={BookOpen}
+        title="No current courses listed"
+        description={`${department.name}'s catalog entry doesn't list any active courses right now — often a department that has been retired or merged into another.`}
+        action={
+          <Button variant="outline" onClick={() => void runScrape({ force: true })}>
+            <RefreshCw className="size-4" />
+            Check the catalog again
+          </Button>
+        }
+      />
     );
   }
 

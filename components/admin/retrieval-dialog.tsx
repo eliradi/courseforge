@@ -126,7 +126,7 @@ export function RetrievalDialog({
         const response = await fetch(`/api/admin/colleges/${collegeId}/retrieve`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ mode, departmentLimit: mode === 'retrieve' ? 3 : 0 }),
+          body: JSON.stringify({ mode, departmentLimit: mode === 'retrieve' ? null : 0 }),
           signal: controller.signal,
         });
 
@@ -238,7 +238,7 @@ export function RetrievalDialog({
           <DialogDescription>
             {mode === 'probe'
               ? 'Runs catalog discovery only — no course pages are scraped.'
-              : 'Discovers the catalog, scrapes departments, then the first three departments’ course lists.'}
+              : 'Fetches every department still missing courses. Departments already in the database are skipped.'}
           </DialogDescription>
         </DialogHeader>
 

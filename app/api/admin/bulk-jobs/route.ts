@@ -15,7 +15,9 @@ const BodySchema = z
     rankFrom: z.number().int().min(1).max(200),
     rankTo: z.number().int().min(1).max(200),
     maxColleges: z.number().int().min(1).max(200),
-    departmentLimit: z.number().int().min(0).max(25),
+    /** `null` fetches every department that needs it. */
+    departmentLimit: z.number().int().min(0).max(1000).nullable(),
+    includePartial: z.boolean().default(true),
   })
   .refine((body) => body.rankFrom <= body.rankTo, {
     message: 'rankFrom must not be greater than rankTo',

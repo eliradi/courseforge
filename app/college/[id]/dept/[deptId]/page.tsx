@@ -4,14 +4,7 @@ import { notFound } from 'next/navigation';
 import { CourseList } from '@/components/college/course-list';
 import { Breadcrumbs } from '@/components/layout/breadcrumbs';
 import { Badge } from '@/components/ui/badge';
-import {
-  CACHE_TTL_DAYS,
-  getCollege,
-  getDepartment,
-  getFavoriteIds,
-  isStale,
-  listCourses,
-} from '@/lib/db/queries';
+import { getCollege, getDepartment, getFavoriteIds, listCourses } from '@/lib/db/queries';
 import { getUser } from '@/lib/supabase/server';
 
 export async function generateMetadata({
@@ -39,7 +32,11 @@ export default async function DepartmentPage({
     listCourses(deptId),
     getFavoriteIds(user?.id ?? null),
   ]);
-  const needsScrape = courses.length === 0 || isStale(courses[0].scraped_at, CACHE_TTL_DAYS);
+  // Courses already in the database are used as-is. Only a department that has
+  // never been checked is scraped automatically — one we checked and found empty
+  // stays that way until someone presses Re-scrape.
+  const needsScrape = courses.length === 0 && !department.courses_scraped_at;
+  const checkedEmpty = courses.length === 0 && Boolean(department.courses_scraped_at);
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-10">
@@ -65,6 +62,7 @@ export default async function DepartmentPage({
         department={department}
         initialCourses={courses}
         needsScrape={needsScrape}
+        checkedEmpty={checkedEmpty}
         favoriteCourseIds={[...favorites.courseIds]}
         signedIn={Boolean(user)}
       />

@@ -474,6 +474,13 @@ export type Database = {
             foreignKeyName: "courses_department_id_fkey"
             columns: ["department_id"]
             isOneToOne: false
+            referencedRelation: "department_course_stats"
+            referencedColumns: ["department_id"]
+          },
+          {
+            foreignKeyName: "courses_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
             referencedRelation: "departments"
             referencedColumns: ["id"]
           },
@@ -484,6 +491,7 @@ export type Database = {
           catalog_url: string | null
           code: string
           college_id: string
+          courses_scraped_at: string | null
           created_at: string
           id: string
           name: string
@@ -493,6 +501,7 @@ export type Database = {
           catalog_url?: string | null
           code: string
           college_id: string
+          courses_scraped_at?: string | null
           created_at?: string
           id?: string
           name: string
@@ -502,6 +511,7 @@ export type Database = {
           catalog_url?: string | null
           code?: string
           college_id?: string
+          courses_scraped_at?: string | null
           created_at?: string
           id?: string
           name?: string
@@ -856,6 +866,8 @@ export type Database = {
           college_id: string | null
           course_count: number | null
           department_count: number | null
+          departments_sourced: number | null
+          departments_with_courses: number | null
           last_scraped_at: string | null
           test_set_count: number | null
         }
@@ -874,6 +886,31 @@ export type Database = {
             columns: ["course_id"]
             isOneToOne: false
             referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      department_course_stats: {
+        Row: {
+          college_id: string | null
+          course_count: number | null
+          courses_scraped_at: string | null
+          department_id: string | null
+          last_scraped_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "departments_college_id_fkey"
+            columns: ["college_id"]
+            isOneToOne: false
+            referencedRelation: "college_stats"
+            referencedColumns: ["college_id"]
+          },
+          {
+            foreignKeyName: "departments_college_id_fkey"
+            columns: ["college_id"]
+            isOneToOne: false
+            referencedRelation: "colleges"
             referencedColumns: ["id"]
           },
         ]

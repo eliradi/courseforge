@@ -9,6 +9,21 @@ fingerprinting the catalog platform and running a purpose-built adapter against
 it. Everything it scrapes is cached and shared, so the second visitor to a
 college pays nothing.
 
+**Data already in the database is always used as-is on the student path**,
+however old it is. Browsing to a course and taking a test never re-scrapes a
+catalog that has already been read; scraping happens only for a college,
+department or course that has never been sourced.
+
+"Sourced" is tracked explicitly. `departments.courses_scraped_at` is set whenever
+a department's course list is read successfully — **including when it comes back
+empty**. Some catalogs still list retired departments whose courses are all
+inactive (FSU's `BUBAD`, for one); before this, such a department looked
+permanently unsourced and was scraped again on every visit. Now a student sees
+"No current courses listed", and nothing is fetched until someone deliberately
+checks again. Refreshing is always an
+explicit action — **Re-scrape** on the college and department pages, or
+**Retrieve** / **Bulk check & retrieve** in the admin console.
+
 ---
 
 ## What's in the box
@@ -163,6 +178,8 @@ generates.)
   must be `True`/`False`. Invalid questions are discarded, not patched.
 - **De-duplication** — normalised-token Jaccard against every stem already in
   the set; anything over 0.8 similarity is rejected and regenerated.
+- **No re-sourcing** — generation reads the course and section from the
+  database; it never calls the scraper.
 - **Progress** — `question_count` is written after each batch, so the UI advances
   via Supabase Realtime (with polling as a fallback).
 - **Resumable** — a batch that fails after two retries marks the set `failed`
@@ -220,7 +237,7 @@ bounces non-admins before the page renders, and every page re-checks server-side
 |---|---|
 | **Overview** | Users, indexed/seeded universities, cached courses, total AI spend, test sets, questions, attempts. |
 | **Users** | Each account's info, favourites, tests created and taken, average/best score, recent results, and AI cost. |
-| **Universities** | All 200 with retrieval method, departments, courses, tests, attempts, total AI cost, and a **Latest activity** cell showing when each of the four tracked operations last ran here and what that run cost. **Check method** and **Retrieve** open a live dialog (below). |
+| **Universities** | All 200 with retrieval method, department coverage (`sourced/total`, amber when incomplete; hover for how many hold courses), courses, tests, attempts, total AI cost, and a **Latest activity** cell showing when each of the four tracked operations last ran here and what that run cost. **Check method** and **Retrieve** open a live dialog (below). |
 | **Courses** | Every cached course with its university, department, derived level, whether tests exist (complete/total), how many people have taken them, and AI cost. |
 
 Create or repair the account with:
@@ -259,10 +276,19 @@ starting, you set:
 - **Max universities this run** — a hard cap within the range, because each one
   takes roughly 30–90 seconds. When the range holds more matches than the cap,
   the dialog says so; run again to continue from where it stopped.
-- **Departments per university** — `0` scrapes departments only.
+- **Departments per university** — all departments that still need courses by
+  default, or a fixed number per university.
+- **Include partly retrieved universities** — also pick universities whose data
+  is current but still has departments that were never sourced (typically from an
+  earlier run limited to a few departments).
 
 The dialog previews how many universities match before you commit. Candidates are
 re-selected server-side rather than trusted from the browser.
+
+**Retrieval only fetches what's missing.** The stored department list is reused
+unless it is stale, and a department is fetched only if it was never sourced or
+its last check is older than the cutoff. Running the same job twice costs nothing
+the second time. The single-university **Retrieve** button works the same way.
 
 Each university is **checked first, and retrieved only if the check succeeds**,
 so a school whose catalog can't be located costs one discovery pass instead of a
