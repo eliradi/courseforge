@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     template: '%s · Aceversity',
   },
   description:
-    'Browse the course catalog of any top-200 US university, then generate 100 practice questions for every section of a course.',
+    'Browse the course catalog of top-ranked worldwide universities, then generate 100 practice questions for every section of a course.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

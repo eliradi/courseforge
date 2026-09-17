@@ -18,6 +18,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { catalogProvenance, describeDiscovery, formatCount } from '@/lib/catalog-source';
+import { collegeRegion, formatLocation, REGION_LABEL, type CollegeRegion } from '@/lib/colleges';
 import type { CollegeStats } from '@/lib/db/queries';
 import type { CatalogPlatform, CatalogSource, College } from '@/lib/supabase/types';
 import { cn } from '@/lib/utils';
@@ -31,7 +32,8 @@ export function CollegePicker({
   colleges,
   signedIn,
   onSelect,
-  placeholder = 'Search all 200 colleges…',
+  placeholder,
+  value,
 }: {
   colleges: CollegeOption[];
   signedIn: boolean;
@@ -41,16 +43,33 @@ export function CollegePicker({
    */
   onSelect?: (college: CollegeOption) => void;
   placeholder?: string;
+  /** The selected college id, when the parent controls it (e.g. to clear it). */
+  value?: string | null;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
+  const currentId = value === undefined ? selectedId : value;
   const selected = useMemo(
-    () => colleges.find((c) => c.id === selectedId) ?? null,
-    [colleges, selectedId],
+    () => colleges.find((c) => c.id === currentId) ?? null,
+    [colleges, currentId],
   );
+
+  // US schools carry US News ranks and the rest QS World ranks, so each list
+  // gets its own group rather than interleaving two sets of numbers.
+  const groups = useMemo(() => {
+    const byRegion: Record<CollegeRegion, CollegeOption[]> = { us: [], intl: [] };
+    for (const college of colleges) byRegion[collegeRegion(college)].push(college);
+    return (['us', 'intl'] as const)
+      .filter((region) => byRegion[region].length > 0)
+      .map((region) => ({
+        region,
+        heading: `${REGION_LABEL[region]} · ranked by ${byRegion[region][0].rank_source}`,
+        colleges: byRegion[region],
+      }));
+  }, [colleges]);
 
   const indexedCount = useMemo(
     () => colleges.filter((c) => (c.stats?.courseCount ?? 0) > 0).length,
@@ -86,7 +105,9 @@ export function CollegePicker({
             <Search className="text-muted-foreground size-5 shrink-0" />
           )}
           <span className={cn('truncate', !selected && 'text-muted-foreground')}>
-            {selected ? selected.name : placeholder}
+            {selected
+              ? selected.name
+              : (placeholder ?? `Search the top ${colleges.length} universities worldwide…`)}
           </span>
         </span>
         <ChevronsUpDown className="text-muted-foreground size-4 shrink-0" />
@@ -98,7 +119,7 @@ export function CollegePicker({
             value.toLowerCase().includes(search.toLowerCase().trim()) ? 1 : 0
           }
         >
-          <CommandInput placeholder="Type a college, state, or abbreviation…" />
+          <CommandInput placeholder="Type a university, city, country or abbreviation…" />
 
           {indexedCount > 0 ? (
             <p className="text-muted-foreground border-b px-3 py-2 text-xs">
@@ -112,17 +133,19 @@ export function CollegePicker({
             <CommandEmpty className="py-8 text-center text-sm">
               No college matches that search.
             </CommandEmpty>
-            <CommandGroup>
-              {colleges.map((college) => (
-                <CollegeRow
-                  key={college.id}
-                  college={college}
-                  selected={selectedId === college.id}
-                  signedIn={signedIn}
-                  onSelect={() => choose(college)}
-                />
-              ))}
-            </CommandGroup>
+            {groups.map((group) => (
+              <CommandGroup key={group.region} heading={group.heading}>
+                {group.colleges.map((college) => (
+                  <CollegeRow
+                    key={college.id}
+                    college={college}
+                    selected={currentId === college.id}
+                    signedIn={signedIn}
+                    onSelect={() => choose(college)}
+                  />
+                ))}
+              </CommandGroup>
+            ))}
           </CommandList>
         </Command>
       </PopoverContent>
@@ -154,14 +177,21 @@ function CollegeRow({
   return (
     <CommandItem
       // Everything searchable goes in `value` so type-ahead hits all of it.
-      value={[college.name, college.short_name, college.state, college.city, college.website_domain]
+      value={[
+        college.name,
+        college.short_name,
+        college.state,
+        college.city,
+        college.country,
+        college.website_domain,
+      ]
         .filter(Boolean)
         .join(' ')}
       onSelect={onSelect}
       className={cn(
         'gap-3 py-2.5',
         // Indexed schools get a tinted row and an accent rail, so the ones that
-        // open instantly stand out while scrolling the full 200.
+        // open instantly stand out while scrolling the full list.
         indexed && 'bg-primary/[0.04] border-primary/40 border-l-2',
       )}
     >
@@ -175,7 +205,7 @@ function CollegeRow({
       <span className="min-w-0 flex-1">
         <span className="block truncate font-medium">{college.name}</span>
         <span className="text-muted-foreground block truncate text-xs">
-          {[college.city, college.state].filter(Boolean).join(', ')}
+          {formatLocation(college)}
         </span>
       </span>
 

@@ -146,6 +146,9 @@ export interface AdminCollegeRow {
   name: string;
   shortName: string | null;
   state: string | null;
+  country: string;
+  /** Which ranking `rank` comes from — US News or QS World. */
+  rankSource: string;
   domain: string;
   catalogUrl: string | null;
   platform: CatalogPlatform | null;
@@ -207,6 +210,8 @@ export async function listAdminColleges(): Promise<AdminCollegeRow[]> {
       name: college.name,
       shortName: college.short_name,
       state: college.state,
+      country: college.country,
+      rankSource: college.rank_source,
       domain: college.website_domain,
       catalogUrl: college.catalog_url,
       platform: college.catalog_platform as CatalogPlatform | null,

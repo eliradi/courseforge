@@ -43,7 +43,7 @@ const FAQ_GROUPS = [
       },
       {
         q: 'My university or course is missing.',
-        a: 'We cover the top US universities and add catalogs over time. Some catalogs are hard to read automatically. Send us the university name and a link to its catalog through the contact page and we will take a look.',
+        a: 'We cover top-ranked worldwide universities and add catalogs over time. Some catalogs are hard to read automatically. Send us the university name and a link to its catalog through the contact page and we will take a look.',
       },
       {
         q: 'Some course details look wrong or out of date.',

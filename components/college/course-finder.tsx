@@ -9,19 +9,23 @@ import {
   ListChecks,
   Loader2,
   Search,
+  X,
   XCircle,
 } from 'lucide-react';
 import Link from 'next/link';
 import { createContext, useContext, useEffect, useId, useRef, useState } from 'react';
 
-import type { CourseMatch, CourseSearchResponse } from '@/app/api/search/courses/route';
+import type {
+  AllCoursesSearchResponse,
+  CourseMatch,
+  CourseSearchResponse,
+} from '@/app/api/search/courses/route';
 import { CollegePicker, type CollegeOption } from '@/components/college/college-picker';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { cn } from '@/lib/utils';
 
 const DEBOUNCE_MS = 300;
 
@@ -34,15 +38,16 @@ const SignedInContext = createContext(false);
 type LookupState =
   | { status: 'idle' }
   | { status: 'loading' }
-  | { status: 'done'; result: CourseSearchResponse }
+  | { status: 'done'; result: CourseSearchResponse | AllCoursesSearchResponse }
   | { status: 'error'; message: string };
 
 /**
  * The "do you have this course?" check.
  *
- * Pick a university, type a course, and see straight away whether we already
- * hold it there — and whether anything similar is sourced at other
- * universities. Purely a read of what's stored: nothing here triggers a scrape.
+ * Type a course to see where it's taught across every university we hold.
+ * Narrowing to one university answers whether we have it there — and whether
+ * anything similar is sourced elsewhere. Purely a read of what's stored:
+ * nothing here triggers a scrape.
  */
 export function CourseFinder({
   colleges,
@@ -61,7 +66,7 @@ export function CourseFinder({
   // request so a slow response can never overwrite a newer one.
   useEffect(() => {
     const term = query.trim();
-    if (!college || term.length < 2) {
+    if (term.length < 2) {
       setLookup({ status: 'idle' });
       return;
     }
@@ -70,11 +75,12 @@ export function CourseFinder({
     const timer = setTimeout(async () => {
       setLookup({ status: 'loading' });
       try {
-        const params = new URLSearchParams({ q: term, college: college.id });
+        const params = new URLSearchParams({ q: term });
+        if (college) params.set('college', college.id);
         const response = await fetch(`/api/search/courses?${params}`, { signal: controller.signal });
         const body = await response.json();
         if (!response.ok) throw new Error(body.error ?? 'The lookup failed.');
-        setLookup({ status: 'done', result: body as CourseSearchResponse });
+        setLookup({ status: 'done', result: body as CourseSearchResponse | AllCoursesSearchResponse });
       } catch (error) {
         if (controller.signal.aborted) return;
         setLookup({
@@ -106,36 +112,10 @@ export function CourseFinder({
     <SignedInContext.Provider value={signedIn}>
       <div className="space-y-4 text-left">
         <div className="space-y-1.5">
-          <Label className="text-muted-foreground flex items-center gap-2 text-xs font-medium tracking-wide uppercase">
-            <span className="bg-primary text-primary-foreground flex size-5 items-center justify-center rounded-full text-[11px]">
-              1
-            </span>
-            University
-          </Label>
-          <CollegePicker
-            colleges={colleges}
-            signedIn={signedIn}
-            onSelect={pickCollege}
-            placeholder="Choose a university…"
-          />
-        </div>
-
-        <div className="space-y-1.5">
           <Label
             htmlFor={courseInputId}
-            className={cn(
-              'flex items-center gap-2 text-xs font-medium tracking-wide uppercase',
-              college ? 'text-muted-foreground' : 'text-muted-foreground/50',
-            )}
+            className="text-muted-foreground text-xs font-medium tracking-wide uppercase"
           >
-            <span
-              className={cn(
-                'flex size-5 items-center justify-center rounded-full text-[11px]',
-                college ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
-              )}
-            >
-              2
-            </span>
             Course
           </Label>
           <div className="relative">
@@ -145,9 +125,10 @@ export function CourseFinder({
               id={courseInputId}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              disabled={!college}
               placeholder={
-                college ? 'Course name or number — e.g. “Machine Learning” or “6.1010”' : 'Choose a university first'
+                college
+                  ? `Course name or number at ${college.short_name ?? college.name}`
+                  : 'Course name or number — e.g. “Machine Learning” or “6.1010”'
               }
               className="h-14 pl-12 text-base shadow-sm"
               autoComplete="off"
@@ -159,11 +140,38 @@ export function CourseFinder({
           </div>
         </div>
 
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <Label className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+              University <span className="font-normal normal-case">(optional)</span>
+            </Label>
+            {college ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground h-6 px-2 text-xs"
+                onClick={() => setCollege(null)}
+              >
+                <X className="size-3" />
+                Search all universities
+              </Button>
+            ) : null}
+          </div>
+          <CollegePicker
+            colleges={colleges}
+            signedIn={signedIn}
+            onSelect={pickCollege}
+            value={college?.id ?? null}
+            placeholder="All universities — or pick one to narrow the results"
+          />
+        </div>
+
         <div aria-live="polite" className="space-y-4">
-          {lookup.status === 'loading' && college ? (
+          {lookup.status === 'loading' ? (
             <p className="text-muted-foreground flex items-center gap-2 text-sm">
               <Loader2 className="size-4 animate-spin" />
-              Checking {college.name}…
+              {college ? `Checking ${college.name}…` : 'Searching all universities…'}
             </p>
           ) : null}
 
@@ -171,7 +179,17 @@ export function CourseFinder({
             <p className="text-destructive text-sm">{lookup.message}</p>
           ) : null}
 
-          {lookup.status === 'done' ? (
+          {lookup.status === 'done' && lookup.result.scope === 'all' ? (
+            <AllResults
+              result={lookup.result}
+              onNarrow={(collegeId) => {
+                const next = colleges.find((c) => c.id === collegeId);
+                if (next) pickCollege(next);
+              }}
+            />
+          ) : null}
+
+          {lookup.status === 'done' && lookup.result.scope === 'college' ? (
             <>
               <Answer result={lookup.result} onPick={pickSuggestion} />
               <Elsewhere result={lookup.result} />
@@ -381,6 +399,93 @@ function Suggestions({
   );
 }
 
+/* ------------------------------------------------------ all universities */
+
+function AllResults({
+  result,
+  onNarrow,
+}: {
+  result: AllCoursesSearchResponse;
+  onNarrow: (collegeId: string) => void;
+}) {
+  const { results, query, method } = result;
+  const signedIn = useContext(SignedInContext);
+  const universities = new Set(results.map((m) => m.collegeId)).size;
+
+  return (
+    <Card>
+      <CardContent className="py-5">
+        <div className="mb-3 flex items-center gap-2">
+          <BookOpen className="text-muted-foreground size-4" />
+          <p className="text-sm font-semibold">
+            {results.length
+              ? `Courses matching “${query}” at ${universities} ${universities === 1 ? 'university' : 'universities'}`
+              : `No courses match “${query}” yet`}
+          </p>
+          {results.length ? (
+            <Badge variant="secondary" className="tabular-nums">
+              {results.length}
+            </Badge>
+          ) : null}
+        </div>
+        <p className="text-muted-foreground -mt-2 mb-3 text-xs">
+          {results.length
+            ? method === 'meaning'
+              ? 'Titles containing your words first, then courses covering the same material. Pick a university below to check one school.'
+              : 'Courses whose titles share your words. Pick a university below to check one school.'
+            : 'We only hold catalogs we’ve already read. Try other words, or pick a university to see how much of its catalog we have.'}
+        </p>
+
+        {results.length ? (
+          <ul className="divide-y rounded-lg border">
+            {results.map((m) => (
+              <li key={m.courseId} className="flex items-center">
+                <ElsewhereRow href={signedIn ? `/course/${m.courseId}` : null}>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate">
+                      <span className="text-muted-foreground mr-2 font-mono text-xs">
+                        {m.courseNumber}
+                      </span>
+                      {m.title}
+                    </span>
+                    <span className="text-muted-foreground block truncate text-xs">
+                      {m.collegeName} · {m.departmentName}
+                    </span>
+                  </span>
+                  <TestsBadge count={m.completeTestSets} />
+                </ElsewhereRow>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground mr-1 shrink-0 text-xs"
+                  title={`Check this course at ${m.collegeName}`}
+                  onClick={() => onNarrow(m.collegeId)}
+                >
+                  Narrow
+                </Button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+function TestsBadge({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return (
+    <Badge
+      variant="outline"
+      className="shrink-0 gap-1 border-emerald-500/40 text-[11px] text-emerald-700 dark:text-emerald-400"
+    >
+      <ListChecks className="size-3" />
+      {count} test{count === 1 ? '' : 's'}
+    </Badge>
+  );
+}
+
 /* --------------------------------------------------------------- elsewhere */
 
 function Elsewhere({ result }: { result: CourseSearchResponse }) {
@@ -426,15 +531,7 @@ function Elsewhere({ result }: { result: CourseSearchResponse }) {
                       {m.collegeRank ? ` · #${m.collegeRank}` : ''} · {m.departmentName}
                     </span>
                   </span>
-                  {m.completeTestSets > 0 ? (
-                    <Badge
-                      variant="outline"
-                      className="shrink-0 gap-1 border-emerald-500/40 text-[11px] text-emerald-700 dark:text-emerald-400"
-                    >
-                      <ListChecks className="size-3" />
-                      {m.completeTestSets} test{m.completeTestSets === 1 ? '' : 's'}
-                    </Badge>
-                  ) : null}
+                  <TestsBadge count={m.completeTestSets} />
                 </ElsewhereRow>
               </li>
             ))}
@@ -451,9 +548,14 @@ function Elsewhere({ result }: { result: CourseSearchResponse }) {
 
 /** A result row: a link for signed-in users, plain text otherwise. */
 function ElsewhereRow({ href, children }: { href: string | null; children: React.ReactNode }) {
-  if (!href) return <div className="flex items-center gap-3 px-3 py-2.5 text-sm">{children}</div>;
+  if (!href) {
+    return <div className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2.5 text-sm">{children}</div>;
+  }
   return (
-    <Link href={href} className="hover:bg-muted/60 flex items-center gap-3 px-3 py-2.5 text-sm">
+    <Link
+      href={href}
+      className="hover:bg-muted/60 flex min-w-0 flex-1 items-center gap-3 px-3 py-2.5 text-sm"
+    >
       {children}
       <ArrowRight className="text-muted-foreground size-3.5 shrink-0" />
     </Link>

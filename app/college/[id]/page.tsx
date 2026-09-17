@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 import { DepartmentBrowser } from '@/components/college/department-browser';
 import { Breadcrumbs } from '@/components/layout/breadcrumbs';
 import { Badge } from '@/components/ui/badge';
+import { describeRank, formatLocation } from '@/lib/colleges';
 import { getCollege, listDepartments } from '@/lib/db/queries';
 
 export async function generateMetadata({
@@ -26,6 +27,7 @@ export default async function CollegePage({ params }: { params: Promise<{ id: st
   // Use whatever is already in the database, however old — only a college we've
   // never read gets scraped automatically. Refreshing is an explicit action.
   const needsScrape = departments.length === 0;
+  const rankLabel = describeRank(college);
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-10">
@@ -33,9 +35,9 @@ export default async function CollegePage({ params }: { params: Promise<{ id: st
 
       <header className="mb-8">
         <div className="flex flex-wrap items-center gap-2">
-          {college.rank ? (
+          {rankLabel ? (
             <Badge variant="secondary" className="font-mono text-[11px]">
-              #{college.rank} nationally
+              {rankLabel}
             </Badge>
           ) : null}
           {college.short_name && college.short_name !== college.name ? (
@@ -48,7 +50,7 @@ export default async function CollegePage({ params }: { params: Promise<{ id: st
         <h1 className="mt-3 text-3xl font-semibold">{college.name}</h1>
 
         <p className="text-muted-foreground mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-          <span>{[college.city, college.state].filter(Boolean).join(', ')}</span>
+          <span>{formatLocation(college)}</span>
           <span aria-hidden>·</span>
           <a
             href={`https://${college.website_domain}`}

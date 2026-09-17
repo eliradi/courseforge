@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { withUsageContext } from '@/lib/ai/usage';
+import type { RegionFilter } from '@/lib/colleges';
 import { recordOperationRun } from '@/lib/db/operation-runs';
 import { discoverCatalog } from '@/lib/scraping/discover-catalog';
 import { describeRetrieval, retrieveMissingCourses } from '@/lib/scraping/retrieve-missing';
@@ -11,6 +12,8 @@ export interface BulkParams {
   staleDays: number;
   rankFrom: number;
   rankTo: number;
+  /** Absent on jobs created before international universities were added. */
+  region?: RegionFilter;
   maxColleges: number;
   /** Most departments to fetch per university; `null` fetches every one that needs it. */
   departmentLimit: number | null;

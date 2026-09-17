@@ -30,6 +30,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { formatUsd } from '@/lib/ai/pricing';
+import { matchesRegion, REGION_LABEL, type RegionFilter } from '@/lib/colleges';
 import type { AdminCollegeRow } from '@/lib/db/admin-queries';
 import { cn } from '@/lib/utils';
 
@@ -59,6 +60,7 @@ interface JobState {
   params: {
     rankFrom: number;
     rankTo: number;
+    region?: RegionFilter;
     staleDays: number;
     maxColleges: number;
     departmentLimit: number | null;
@@ -68,6 +70,12 @@ interface JobState {
 }
 
 type Connection = 'idle' | 'connecting' | 'live' | 'reconnecting';
+
+const REGION_OPTIONS: Array<{ value: RegionFilter; label: string }> = [
+  { value: 'all', label: 'All' },
+  { value: 'us', label: REGION_LABEL.us },
+  { value: 'intl', label: REGION_LABEL.intl },
+];
 
 const STATUS_LABEL: Record<JobStatus, string> = {
   running: 'Running',
@@ -102,10 +110,12 @@ export function selectCandidates(
   rankFrom = 1,
   rankTo = 200,
   includePartial = true,
+  region: RegionFilter = 'all',
 ): AdminCollegeRow[] {
   const cutoff = Date.now() - staleDays * 24 * 60 * 60 * 1000;
   return colleges.filter((college) => {
     if (college.rank === null) return false;
+    if (!matchesRegion(college.country, region)) return false;
     if (college.rank < rankFrom || college.rank > rankTo) return false;
 
     if (college.courseCount === 0) return true;
@@ -127,6 +137,7 @@ export function BulkDialog({
   const [staleDays, setStaleDays] = useState(30);
   const [rankFrom, setRankFrom] = useState(1);
   const [rankTo, setRankTo] = useState(200);
+  const [region, setRegion] = useState<RegionFilter>('all');
   const [maxColleges, setMaxColleges] = useState(10);
   const [allDepartments, setAllDepartments] = useState(true);
   const [departmentLimit, setDepartmentLimit] = useState(3);
@@ -148,8 +159,10 @@ export function BulkDialog({
   const rangeValid = rankFrom <= rankTo;
   const candidates = useMemo(
     () =>
-      rangeValid ? selectCandidates(colleges, staleDays, rankFrom, rankTo, includePartial) : [],
-    [colleges, staleDays, rankFrom, rankTo, rangeValid, includePartial],
+      rangeValid
+        ? selectCandidates(colleges, staleDays, rankFrom, rankTo, includePartial, region)
+        : [],
+    [colleges, staleDays, rankFrom, rankTo, rangeValid, includePartial, region],
   );
   const willRun = Math.min(candidates.length, maxColleges);
 
@@ -289,6 +302,7 @@ export function BulkDialog({
           staleDays,
           rankFrom,
           rankTo,
+          region,
           maxColleges,
           departmentLimit: allDepartments ? null : departmentLimit,
           includePartial,
@@ -300,7 +314,7 @@ export function BulkDialog({
       console.info(
         '[Aceversity] bulk job started',
         body.job.id,
-        `ranks ${rankFrom}-${rankTo} · stale ${staleDays}d · max ${maxColleges} · ` +
+        `${region} ranks ${rankFrom}-${rankTo} · stale ${staleDays}d · max ${maxColleges} · ` +
           `${allDepartments ? 'all' : departmentLimit} depts · partial ${includePartial}`,
       );
 
@@ -383,9 +397,28 @@ export function BulkDialog({
               </p>
             ) : null}
 
+            <div className="space-y-1.5">
+              <Label>Universities</Label>
+              <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Universities">
+                {REGION_OPTIONS.map((option) => (
+                  <Button
+                    key={option.value}
+                    type="button"
+                    size="sm"
+                    role="radio"
+                    aria-checked={region === option.value}
+                    variant={region === option.value ? 'secondary' : 'outline'}
+                    onClick={() => setRegion(option.value)}
+                  >
+                    {option.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor="rank-from">National ranking range</Label>
+                <Label htmlFor="rank-from">Ranking range</Label>
                 <div className="flex items-center gap-2">
                   <Input
                     id="rank-from"
@@ -411,7 +444,9 @@ export function BulkDialog({
                 </div>
                 <p className={cn('text-xs', rangeValid ? 'text-muted-foreground' : 'text-destructive')}>
                   {rangeValid
-                    ? 'Inclusive. Universities are processed in ranking order.'
+                    ? region === 'all'
+                      ? 'Inclusive, applied to each list: US News for US schools, QS World for the rest.'
+                      : 'Inclusive. Universities are processed in ranking order.'
                     : 'The starting rank must not be higher than the ending rank.'}
                 </p>
               </div>
@@ -548,6 +583,9 @@ export function BulkDialog({
               <span className="text-destructive tabular-nums">{job.failed} failed</span>
               <span className="text-muted-foreground tabular-nums">{formatUsd(job.totalCostUsd)} spent</span>
               <span className="text-muted-foreground tabular-nums">
+                {job.params.region && job.params.region !== 'all'
+                  ? `${REGION_LABEL[job.params.region]} · `
+                  : ''}
                 ranks {job.params.rankFrom}–{job.params.rankTo}
               </span>
               <span className="text-muted-foreground ml-auto">Full detail is in the browser console.</span>

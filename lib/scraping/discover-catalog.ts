@@ -38,10 +38,16 @@ function candidateUrls(domain: string): string[] {
     `https://registrar.${d}/catalog`,
     `https://registrar.${d}/catalogs`,
     `https://catalog.${d}/courses`,
+    // Common outside the US: "handbook" (Australia, NZ), "course catalogue"
+    // (Canada, Europe) and "module catalogue" (UK).
+    `https://handbook.${d}`,
+    `https://coursecatalogue.${d}`,
+    `https://${d}/handbook`,
+    `https://${d}/module-catalogue`,
   ];
 }
 
-const CATALOG_WORDS = /catalog|bulletin|course|academics|curriculum|schedule of classes/i;
+const CATALOG_WORDS = /catalog|bulletin|course|academics|curriculum|schedule of classes|handbook|module/i;
 
 /**
  * Scores how catalog-like a fetched page is. Cheap signals only — the model is
@@ -59,7 +65,7 @@ function scorePage(url: string, html: string): number {
   }
 
   const domain = parsed.hostname.replace(/^www\./, '');
-  const isCatalogSubdomain = /^(catalog|catalogs|catalogue|bulletin|bulletins|coursecatalog|courses|guide|classes)\./i.test(
+  const isCatalogSubdomain = /^(catalog|catalogs|catalogue|bulletin|bulletins|coursecatalog|coursecatalogue|courses|guide|classes|handbook)\./i.test(
     parsed.hostname,
   );
 
@@ -71,7 +77,7 @@ function scorePage(url: string, html: string): number {
   const $ = cheerio.load(html);
   const title = clean($('title').text());
   if (CATALOG_WORDS.test(title)) score += 20;
-  if (/course catalog|academic catalog|general catalog|course catalogue|undergraduate bulletin|academic bulletin|course guide/i.test(title)) {
+  if (/course catalog|academic catalog|general catalog|course catalogue|undergraduate bulletin|academic bulletin|course guide|course handbook|module catalogue/i.test(title)) {
     score += 20;
   }
 
@@ -101,7 +107,7 @@ function scorePage(url: string, html: string): number {
   // this is what keeps "/academics" landing pages, news posts and presidential
   // letters from beating a real catalog we simply haven't probed yet.
   const isMarketingHost = parsed.hostname === domain || parsed.hostname === `www.${domain}`;
-  if (isMarketingHost && !hasFingerprint && !/catalog|bulletin|course/i.test(parsed.pathname)) {
+  if (isMarketingHost && !hasFingerprint && !/catalog|bulletin|course|handbook|module/i.test(parsed.pathname)) {
     score -= 45;
   }
 

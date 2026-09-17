@@ -333,11 +333,13 @@ export type Database = {
           catalog_source: string | null
           catalog_url: string | null
           city: string | null
+          country: string
           created_at: string
           id: string
           logo_url: string | null
           name: string
           rank: number | null
+          rank_source: string
           short_name: string | null
           state: string | null
           website_domain: string
@@ -349,11 +351,13 @@ export type Database = {
           catalog_source?: string | null
           catalog_url?: string | null
           city?: string | null
+          country?: string
           created_at?: string
           id?: string
           logo_url?: string | null
           name: string
           rank?: number | null
+          rank_source?: string
           short_name?: string | null
           state?: string | null
           website_domain: string
@@ -365,11 +369,13 @@ export type Database = {
           catalog_source?: string | null
           catalog_url?: string | null
           city?: string | null
+          country?: string
           created_at?: string
           id?: string
           logo_url?: string | null
           name?: string
           rank?: number | null
+          rank_source?: string
           short_name?: string | null
           state?: string | null
           website_domain?: string

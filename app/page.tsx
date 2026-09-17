@@ -1,4 +1,4 @@
-import { BookOpen, ListChecks, Search } from 'lucide-react';
+import Image from 'next/image';
 
 import { CourseFinder } from '@/components/college/course-finder';
 import { FavoritesSection } from '@/components/college/favorites-section';
@@ -18,17 +18,12 @@ export const dynamic = 'force-dynamic';
 
 const STEPS = [
   {
-    icon: Search,
-    title: 'Pick your college',
-    body: 'All 200 top-ranked US national universities, searchable by name, abbreviation or state.',
+    image: '/icon-search.png',
+    title: 'Find a course or university',
+    body: 'Check a course by its name or number, or browse the full catalog of a top-ranked university anywhere in the world.',
   },
   {
-    icon: BookOpen,
-    title: 'Drill into a course',
-    body: 'We find the official catalog, read the department list, and pull the full course profile.',
-  },
-  {
-    icon: ListChecks,
+    image: '/icon-generate.png',
     title: 'Generate practice tests',
     body: '100 original questions per section, graded and charted by topic and difficulty.',
   },
@@ -52,6 +47,8 @@ export default async function HomePage() {
 
   return (
     <div className="mx-auto w-full max-w-4xl px-4 py-16 sm:py-24">
+      {user ? <FavoritesSection colleges={favorites.colleges} courses={favorites.courses} /> : null}
+
       <section className="text-center">
         <p className="text-primary mb-3 text-sm font-medium">
           {colleges.length} universities · live catalogs
@@ -79,16 +76,13 @@ export default async function HomePage() {
       {user ? (
         <div className="mt-16">
           <TestHistorySection history={history} />
-          <FavoritesSection colleges={favorites.colleges} courses={favorites.courses} />
         </div>
       ) : null}
 
-      <section className="mt-20 grid gap-8 sm:grid-cols-3">
+      <section className="mt-20 grid gap-8 sm:grid-cols-2">
         {STEPS.map((step, index) => (
           <div key={step.title}>
-            <div className="bg-primary/10 text-primary mb-3 flex size-9 items-center justify-center rounded-lg">
-              <step.icon className="size-4" />
-            </div>
+            <Image src={step.image} alt="" width={256} height={256} className="mb-3 size-12" />
             <h2 className="text-sm font-semibold">
               <span className="text-muted-foreground mr-1.5 font-mono text-xs">0{index + 1}</span>
               {step.title}

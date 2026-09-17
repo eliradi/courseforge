@@ -14,6 +14,7 @@ const BodySchema = z
     staleDays: z.number().int().min(0).max(3650),
     rankFrom: z.number().int().min(1).max(200),
     rankTo: z.number().int().min(1).max(200),
+    region: z.enum(['us', 'intl', 'all']).default('all'),
     maxColleges: z.number().int().min(1).max(200),
     /** `null` fetches every department that needs it. */
     departmentLimit: z.number().int().min(0).max(1000).nullable(),

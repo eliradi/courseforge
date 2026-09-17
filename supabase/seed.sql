@@ -1,6 +1,7 @@
 -- ============================================================================
 -- Aceversity — seed data
--- Top 200 USA national universities (US News National Universities ranking order).
+-- Top 200 USA national universities (US News National Universities ranking order)
+-- and the top 50 non-US universities (QS World University Rankings 2027).
 -- Idempotent: re-running updates ranking/location metadata without disturbing
 -- any catalog discovery results already cached on the row.
 -- ============================================================================
@@ -213,3 +214,67 @@ on conflict (website_domain) do update set
   short_name = excluded.short_name,
   city       = excluded.city,
   state      = excluded.state;
+
+-- ----------------------------------------------------------------------------
+-- Top 50 non-US universities (QS World University Rankings 2027 order; tied
+-- ranks such as "=8" keep their shared number). Requires migration 0016.
+-- ----------------------------------------------------------------------------
+insert into public.colleges (rank, name, short_name, city, country, rank_source, website_domain)
+values
+  (2, 'Imperial College London', 'Imperial', 'London', 'United Kingdom', 'QS 2027', 'imperial.ac.uk'),
+  (4, 'University of Oxford', 'Oxford', 'Oxford', 'United Kingdom', 'QS 2027', 'ox.ac.uk'),
+  (6, 'University of Cambridge', 'Cambridge', 'Cambridge', 'United Kingdom', 'QS 2027', 'cam.ac.uk'),
+  (8, 'ETH Zurich', 'ETH Zurich', 'Zürich', 'Switzerland', 'QS 2027', 'ethz.ch'),
+  (8, 'University College London', 'UCL', 'London', 'United Kingdom', 'QS 2027', 'ucl.ac.uk'),
+  (10, 'National University of Singapore', 'NUS', 'Singapore', 'Singapore', 'QS 2027', 'nus.edu.sg'),
+  (11, 'The University of Hong Kong', 'HKU', 'Hong Kong', 'Hong Kong', 'QS 2027', 'hku.hk'),
+  (12, 'Nanyang Technological University, Singapore', 'NTU Singapore', 'Singapore', 'Singapore', 'QS 2027', 'ntu.edu.sg'),
+  (13, 'Peking University', 'PKU', 'Beijing', 'China', 'QS 2027', 'pku.edu.cn'),
+  (14, 'Tsinghua University', 'Tsinghua', 'Beijing', 'China', 'QS 2027', 'tsinghua.edu.cn'),
+  (18, 'The Chinese University of Hong Kong', 'CUHK', 'Hong Kong', 'Hong Kong', 'QS 2027', 'cuhk.edu.hk'),
+  (19, 'The University of New South Wales', 'UNSW', 'Sydney', 'Australia', 'QS 2027', 'unsw.edu.au'),
+  (22, 'EPFL – École polytechnique fédérale de Lausanne', 'EPFL', 'Lausanne', 'Switzerland', 'QS 2027', 'epfl.ch'),
+  (22, 'The University of Melbourne', 'Melbourne', 'Melbourne', 'Australia', 'QS 2027', 'unimelb.edu.au'),
+  (25, 'Technical University of Munich', 'TUM', 'Munich', 'Germany', 'QS 2027', 'tum.de'),
+  (26, 'Fudan University', 'Fudan', 'Shanghai', 'China', 'QS 2027', 'fudan.edu.cn'),
+  (28, 'The University of Sydney', 'Sydney', 'Sydney', 'Australia', 'QS 2027', 'sydney.edu.au'),
+  (29, 'Australian National University', 'ANU', 'Canberra', 'Australia', 'QS 2027', 'anu.edu.au'),
+  (30, 'McGill University', 'McGill', 'Montreal', 'Canada', 'QS 2027', 'mcgill.ca'),
+  (31, 'Monash University', 'Monash', 'Melbourne', 'Australia', 'QS 2027', 'monash.edu'),
+  (32, 'University of Toronto', 'U of T', 'Toronto', 'Canada', 'QS 2027', 'utoronto.ca'),
+  (33, 'The Hong Kong University of Science and Technology', 'HKUST', 'Hong Kong', 'Hong Kong', 'QS 2027', 'hkust.edu.hk'),
+  (34, 'Université PSL', 'PSL', 'Paris', 'France', 'QS 2027', 'psl.eu'),
+  (35, 'The University of Edinburgh', 'Edinburgh', 'Edinburgh', 'United Kingdom', 'QS 2027', 'ed.ac.uk'),
+  (36, 'Shanghai Jiao Tong University', 'SJTU', 'Shanghai', 'China', 'QS 2027', 'sjtu.edu.cn'),
+  (37, 'King''s College London', 'KCL', 'London', 'United Kingdom', 'QS 2027', 'kcl.ac.uk'),
+  (38, 'Seoul National University', 'SNU', 'Seoul', 'South Korea', 'QS 2027', 'snu.ac.kr'),
+  (39, 'The University of Tokyo', 'UTokyo', 'Tokyo', 'Japan', 'QS 2027', 'u-tokyo.ac.jp'),
+  (40, 'The University of Manchester', 'Manchester', 'Manchester', 'United Kingdom', 'QS 2027', 'manchester.ac.uk'),
+  (40, 'The University of Queensland', 'UQ', 'Brisbane', 'Australia', 'QS 2027', 'uq.edu.au'),
+  (42, 'Yonsei University', 'Yonsei', 'Seoul', 'South Korea', 'QS 2027', 'yonsei.ac.kr'),
+  (43, 'Institut Polytechnique de Paris', 'IP Paris', 'Paris', 'France', 'QS 2027', 'ip-paris.fr'),
+  (45, 'University of British Columbia', 'UBC', 'Vancouver', 'Canada', 'QS 2027', 'ubc.ca'),
+  (47, 'Zhejiang University', 'ZJU', 'Hangzhou', 'China', 'QS 2027', 'zju.edu.cn'),
+  (48, 'Delft University of Technology', 'TU Delft', 'Delft', 'Netherlands', 'QS 2027', 'tudelft.nl'),
+  (50, 'The Hong Kong Polytechnic University', 'PolyU', 'Hong Kong', 'Hong Kong', 'QS 2027', 'polyu.edu.hk'),
+  (52, 'City University of Hong Kong', 'CityUHK', 'Kowloon', 'Hong Kong', 'QS 2027', 'cityu.edu.hk'),
+  (52, 'Korea University', 'Korea University', 'Seoul', 'South Korea', 'QS 2027', 'korea.ac.kr'),
+  (54, 'National Taiwan University', 'NTU Taiwan', 'Taipei', 'Taiwan', 'QS 2027', 'ntu.edu.tw'),
+  (56, 'Universiti Malaya', 'UM', 'Kuala Lumpur', 'Malaysia', 'QS 2027', 'um.edu.my'),
+  (57, 'University of Bristol', 'Bristol', 'Bristol', 'United Kingdom', 'QS 2027', 'bristol.ac.uk'),
+  (59, 'KU Leuven', 'KU Leuven', 'Leuven', 'Belgium', 'QS 2027', 'kuleuven.be'),
+  (60, 'University of Amsterdam', 'UvA', 'Amsterdam', 'Netherlands', 'QS 2027', 'uva.nl'),
+  (61, 'Ludwig-Maximilians-Universität München', 'LMU Munich', 'Munich', 'Germany', 'QS 2027', 'lmu.de'),
+  (62, 'The London School of Economics and Political Science', 'LSE', 'London', 'United Kingdom', 'QS 2027', 'lse.ac.uk'),
+  (63, 'King Fahd University of Petroleum and Minerals', 'KFUPM', 'Dhahran', 'Saudi Arabia', 'QS 2027', 'kfupm.edu.sa'),
+  (64, 'Kyoto University', 'Kyoto', 'Kyoto', 'Japan', 'QS 2027', 'kyoto-u.ac.jp'),
+  (65, 'Korea Advanced Institute of Science and Technology', 'KAIST', 'Daejeon', 'South Korea', 'QS 2027', 'kaist.ac.kr'),
+  (67, 'The University of Auckland', 'Auckland', 'Auckland', 'New Zealand', 'QS 2027', 'auckland.ac.nz'),
+  (68, 'University of Warwick', 'Warwick', 'Coventry', 'United Kingdom', 'QS 2027', 'warwick.ac.uk')
+on conflict (website_domain) do update set
+  rank        = excluded.rank,
+  name        = excluded.name,
+  short_name  = excluded.short_name,
+  city        = excluded.city,
+  country     = excluded.country,
+  rank_source = excluded.rank_source;

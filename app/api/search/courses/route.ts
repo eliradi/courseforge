@@ -9,7 +9,8 @@ export const dynamic = 'force-dynamic';
 
 const QuerySchema = z.object({
   q: z.string().trim().min(2).max(120),
-  college: z.string().uuid(),
+  /** Omitted to search every university. */
+  college: z.string().uuid().optional(),
 });
 
 export interface CourseMatch {
@@ -35,7 +36,17 @@ export interface CourseMatch {
   completeTestSets: number;
 }
 
+/** Response when no university is chosen: the best-matching courses anywhere. */
+export interface AllCoursesSearchResponse {
+  scope: 'all';
+  query: string;
+  results: CourseMatch[];
+  /** 'meaning' when embeddings contributed, 'words' when only titles were compared. */
+  method: 'meaning' | 'words';
+}
+
 export interface CourseSearchResponse {
+  scope: 'college';
   query: string;
   college: {
     id: string;
@@ -97,6 +108,10 @@ const MIN_SIMILARITY_TO_QUERY = 0.5;
 
 const ELSEWHERE_LIMIT = 10;
 const ELSEWHERE_PER_COLLEGE = 2;
+
+/** All-universities search: a longer list, a few courses per university. */
+const ALL_LIMIT = 15;
+const ALL_PER_COLLEGE = 3;
 
 /** A query needs real words for its meaning to be worth embedding ("6.7900" has none). */
 function hasWords(query: string): boolean {
@@ -189,13 +204,14 @@ type Supabase = Awaited<ReturnType<typeof createClient>>;
  */
 async function similarByMeaning(
   supabase: Supabase,
-  collegeId: string,
+  collegeId: string | null,
   target: { courseId: string } | { query: string },
+  limits = { limit: ELSEWHERE_LIMIT, perCollege: ELSEWHERE_PER_COLLEGE },
 ): Promise<CourseMatch[] | null> {
   const common = {
-    p_exclude_college_id: collegeId,
-    p_limit: ELSEWHERE_LIMIT,
-    p_per_college: ELSEWHERE_PER_COLLEGE,
+    p_exclude_college_id: collegeId ?? undefined,
+    p_limit: limits.limit,
+    p_per_college: limits.perCollege,
   };
 
   if ('courseId' in target) {
@@ -228,15 +244,21 @@ async function similarByMeaning(
 }
 
 /** `primary` first, then `secondary`, without repeats and within the per-university cap. */
-function mergeSimilar(primary: CourseMatch[], secondary: CourseMatch[]): CourseMatch[] {
+function mergeSimilar(
+  primary: CourseMatch[],
+  secondary: CourseMatch[],
+  limits = { limit: ELSEWHERE_LIMIT, perCollege: ELSEWHERE_PER_COLLEGE },
+): CourseMatch[] {
   const out: CourseMatch[] = [];
   const seen = new Set<string>();
   const perCollege = new Map<string, number>();
   for (const m of [...primary, ...secondary]) {
-    if (out.length >= ELSEWHERE_LIMIT) break;
+    if (out.length >= limits.limit) break;
     const count = perCollege.get(m.collegeId) ?? 0;
-    if (seen.has(m.courseId) || count >= ELSEWHERE_PER_COLLEGE) continue;
-    seen.add(m.courseId);
+    // A course listed under several departments is still one course.
+    const key = `${m.collegeId}|${m.courseNumber}|${normalizedTitle(m.title)}`;
+    if (seen.has(key) || count >= limits.perCollege) continue;
+    seen.add(key);
     perCollege.set(m.collegeId, count + 1);
     out.push(m);
   }
@@ -244,20 +266,48 @@ function mergeSimilar(primary: CourseMatch[], secondary: CourseMatch[]): CourseM
 }
 
 /**
+ * No university chosen: courses matching the query at any university. Titles
+ * containing the typed words lead; courses about the same thing by meaning
+ * fill in the rest.
+ */
+async function searchAll(supabase: Supabase, rawQuery: string, q: string): Promise<Response> {
+  const limits = { limit: ALL_LIMIT, perCollege: ALL_PER_COLLEGE };
+  const [words, byMeaning] = await Promise.all([
+    supabase.rpc('search_courses', { q, p_limit: ALL_LIMIT, p_per_college: ALL_PER_COLLEGE }),
+    hasWords(q) ? similarByMeaning(supabase, null, { query: q }, limits) : Promise.resolve(null),
+  ]);
+  if (words.error) {
+    return Response.json({ error: words.error.message ?? 'Search failed.' }, { status: 500 });
+  }
+
+  const byWords = ((words.data ?? []) as Row[]).map(toMatch);
+  const body: AllCoursesSearchResponse = {
+    scope: 'all',
+    query: rawQuery,
+    results: mergeSimilar(byWords, byMeaning ?? [], limits),
+    method: byMeaning?.length ? 'meaning' : 'words',
+  };
+  return Response.json(body, { headers: { 'cache-control': 'private, max-age=30' } });
+}
+
+/**
  * Public course lookup: "is this course already in your system at this
- * university, and is anything similar taught elsewhere?"
+ * university, and is anything similar taught elsewhere?" — or, with no
+ * university given, "where is a course like this taught?"
  *
  * Reads only what's already stored — it never triggers a scrape.
  */
 export async function GET(request: NextRequest) {
   const parsed = QuerySchema.safeParse(Object.fromEntries(new URL(request.url).searchParams));
   if (!parsed.success) {
-    return Response.json({ error: 'Provide q (2–120 characters) and a college id.' }, { status: 400 });
+    return Response.json({ error: 'Provide q (2–120 characters).' }, { status: 400 });
   }
 
   const { q: rawQuery, college: collegeId } = parsed.data;
   const q = expand(rawQuery);
   const supabase = await createClient();
+
+  if (!collegeId) return searchAll(supabase, rawQuery, q);
 
   const [
     { data: college },
@@ -320,6 +370,7 @@ export async function GET(request: NextRequest) {
       : mergeSimilar(byWords, byMeaning);
 
   const body: CourseSearchResponse = {
+    scope: 'college',
     query: rawQuery,
     college: {
       id: college.id,

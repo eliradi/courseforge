@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { matchesRegion } from '@/lib/colleges';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { HEARTBEAT_STALE_MS, isRunnerActive, type BulkParams } from './runner';
 
@@ -41,7 +42,10 @@ async function selectCandidates(params: BulkParams): Promise<Array<{ id: string 
   const cutoff = Date.now() - params.staleDays * 24 * 60 * 60 * 1000;
 
   const [colleges, stats] = await Promise.all([
-    admin.from('colleges').select('id, rank').order('rank', { ascending: true, nullsFirst: false }),
+    admin
+      .from('colleges')
+      .select('id, rank, country')
+      .order('rank', { ascending: true, nullsFirst: false }),
     admin
       .from('college_stats')
       .select('college_id, course_count, last_scraped_at, department_count, departments_sourced'),
@@ -52,6 +56,7 @@ async function selectCandidates(params: BulkParams): Promise<Array<{ id: string 
   return (colleges.data ?? [])
     .filter((college) => {
       if (college.rank === null) return false;
+      if (!matchesRegion(college.country, params.region)) return false;
       if (college.rank < params.rankFrom || college.rank > params.rankTo) return false;
 
       const stat = statsById.get(college.id);

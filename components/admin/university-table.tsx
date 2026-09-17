@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { formatTokens, formatUsd } from '@/lib/ai/pricing';
 import { catalogProvenance } from '@/lib/catalog-source';
+import { collegeRegion, placeName } from '@/lib/colleges';
 import type { AdminCollegeRow, OperationSnapshot } from '@/lib/db/admin-queries';
 import { cn } from '@/lib/utils';
 
@@ -43,7 +44,8 @@ function latestActivity(college: AdminCollegeRow): number | null {
 }
 
 const ACCESSORS: Record<CollegeSort, (college: AdminCollegeRow) => string | number | null> = {
-  rank: (c) => c.rank,
+  // US News ranks first, then QS World ranks — the two lists share numbers.
+  rank: (c) => (c.rank === null ? null : c.rank + (collegeRegion(c) === 'intl' ? 1000 : 0)),
   name: (c) => c.name,
   method: (c) => catalogProvenance(c.platform, c.source)?.label ?? null,
   // Coverage first, so "fully sourced" and "not started" separate cleanly.
@@ -68,7 +70,7 @@ export function UniversityTable({ colleges }: { colleges: AdminCollegeRow[] }) {
 
   // Shown on the bulk button so the size of the job is visible before opening.
   const staleCount = useMemo(
-    () => selectCandidates(colleges, 30, 1, 200, true).length,
+    () => selectCandidates(colleges, 30, 1, 200, true, 'all').length,
     [colleges],
   );
 
@@ -81,7 +83,7 @@ export function UniversityTable({ colleges }: { colleges: AdminCollegeRow[] }) {
       return (
         college.name.toLowerCase().includes(needle) ||
         college.domain.toLowerCase().includes(needle) ||
-        (college.state ?? '').toLowerCase().includes(needle)
+        (placeName(college) ?? '').toLowerCase().includes(needle)
       );
     });
   }, [colleges, query, filter]);
@@ -114,7 +116,7 @@ export function UniversityTable({ colleges }: { colleges: AdminCollegeRow[] }) {
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Filter by name, domain or state…"
+            placeholder="Filter by name, domain or location…"
             className="h-9 pl-9"
           />
         </div>
@@ -170,13 +172,18 @@ export function UniversityTable({ colleges }: { colleges: AdminCollegeRow[] }) {
                 <TableRow key={college.id} className={cn(college.courseCount > 0 && 'bg-primary/[0.03]')}>
                   <TableCell className="text-muted-foreground font-mono text-xs tabular-nums">
                     {college.rank ?? '—'}
+                    {collegeRegion(college) === 'intl' ? (
+                      <span className="block text-[10px]" title={college.rankSource}>
+                        QS
+                      </span>
+                    ) : null}
                   </TableCell>
 
                   <TableCell>
                     <span className="block text-sm font-medium">{college.name}</span>
                     <span className="text-muted-foreground block text-xs">
                       {college.domain}
-                      {college.state ? ` · ${college.state}` : ''}
+                      {placeName(college) ? ` · ${placeName(college)}` : ''}
                     </span>
                   </TableCell>
 

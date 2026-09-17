@@ -8,7 +8,7 @@ export const SITE = {
   name: 'Aceversity',
   tagline: 'Ace Your University Journey',
   description:
-    'Explore the real course catalog of top US universities, then practice every section of a course with AI-generated questions.',
+    'Explore the real course catalog of top-ranked worldwide universities, then practice every section of a course with AI-generated questions.',
   emails: {
     support: 'support@aceversity.com',
     hello: 'hello@aceversity.com',
@@ -29,7 +29,7 @@ export const SOCIAL_LINKS: SocialLink[] = [
   { label: 'Aceversity on X', href: 'https://x.com/aceversity', icon: siX },
   {
     label: 'Aceversity on Instagram',
-    href: 'https://instagram.com/aceversity',
+    href: 'https://instagram.com/ace.versity',
     icon: siInstagram,
   },
   {

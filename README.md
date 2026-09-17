@@ -1,6 +1,6 @@
 # Aceversity
 
-Browse the live course catalog of any top-200 US university, drill down to a
+Browse the live course catalog of top-ranked worldwide universities, drill down to a
 single course, and generate 100 original practice questions for every section of
 it.
 

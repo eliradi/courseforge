@@ -17,7 +17,7 @@ const STORAGE_KEY = 'aceversity:home-search-mode';
  * mode used is remembered on this device.
  */
 export function HomeSearch({ colleges }: { colleges: CollegeOption[] }) {
-  const [mode, setMode] = useState<Mode>('browse');
+  const [mode, setMode] = useState<Mode>('check');
 
   // Read after mount so the server render and first client render agree.
   useEffect(() => {
@@ -42,13 +42,13 @@ export function HomeSearch({ colleges }: { colleges: CollegeOption[] }) {
   return (
     <Tabs value={mode} onValueChange={change} className="gap-4">
       <TabsList className="mx-auto h-9 w-full max-w-sm">
-        <TabsTrigger value="browse">
-          <Building2 />
-          Browse universities
-        </TabsTrigger>
         <TabsTrigger value="check">
           <SearchCheck />
           Check a course
+        </TabsTrigger>
+        <TabsTrigger value="browse">
+          <Building2 />
+          Browse universities
         </TabsTrigger>
       </TabsList>
 
