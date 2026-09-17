@@ -3,14 +3,20 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
-import { TARGET_QUESTIONS } from '@/lib/ai/generate-questions';
 import { isAiConfigured } from '@/lib/ai/models';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { DEFAULT_QUESTION_COUNT, QUESTION_COUNTS } from '@/lib/question-counts';
 import { getUser } from '@/lib/supabase/server';
 import { DAILY_TEST_SET_CAP, countTestSetsToday, getSection } from '@/lib/db/queries';
 import type { TestSet } from '@/lib/supabase/types';
 
-const CreateSchema = z.object({ courseSectionId: z.string().uuid() });
+const CreateSchema = z.object({
+  courseSectionId: z.string().uuid(),
+  questionCount: z
+    .number()
+    .refine((n) => (QUESTION_COUNTS as readonly number[]).includes(n), 'Unsupported test length.')
+    .default(DEFAULT_QUESTION_COUNT),
+});
 
 export interface CreateTestSetResult {
   ok: boolean;
@@ -22,14 +28,17 @@ export interface CreateTestSetResult {
  * Creates the `test_sets` row for a section and hands back its id.
  *
  * Generation itself runs in `/api/test-sets/generate`, which streams batch
- * progress to the browser — a hundred questions takes minutes, which is far
+ * progress to the browser — a long set takes minutes, which is far
  * longer than a server action should hold a request open.
  */
 export async function createTestSet(input: {
   courseSectionId: string;
+  questionCount?: number;
 }): Promise<CreateTestSetResult> {
   const parsed = CreateSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: 'Invalid section.' };
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid request.' };
+  }
 
   const user = await getUser();
   if (!user) return { ok: false, error: 'Sign in to generate tests.' };
@@ -57,7 +66,7 @@ export async function createTestSet(input: {
       user_id: user.id,
       status: 'generating',
       question_count: 0,
-      target_count: TARGET_QUESTIONS,
+      target_count: parsed.data.questionCount,
     })
     .select()
     .single();

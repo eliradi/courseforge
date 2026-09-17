@@ -9,7 +9,13 @@ import { startAttempt } from '@/app/actions/attempts';
 import { Button } from '@/components/ui/button';
 
 /** Opens a fresh attempt against a test the user has already taken. */
-export function RetakeButton({ testSetId }: { testSetId: string }) {
+export function RetakeButton({
+  testSetId,
+  size = 'sm',
+}: {
+  testSetId: string;
+  size?: 'sm' | 'default';
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
@@ -25,7 +31,7 @@ export function RetakeButton({ testSetId }: { testSetId: string }) {
   }
 
   return (
-    <Button size="sm" variant="outline" onClick={retake} disabled={pending}>
+    <Button size={size} variant="outline" onClick={retake} disabled={pending}>
       {pending ? <Loader2 className="size-3.5 animate-spin" /> : <RotateCcw className="size-3.5" />}
       Retake
     </Button>

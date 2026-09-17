@@ -16,6 +16,7 @@ import {
   type BatchPlan,
 } from './prompts';
 
+/** Longest test a user can ask for, and the size of sets made before lengths were selectable. */
 export const TARGET_QUESTIONS = 100;
 export const BATCH_SIZE = 25;
 const MAX_BATCH_ATTEMPTS = 3; // the initial call plus two retries
@@ -31,6 +32,8 @@ export interface GenerationContext {
   course: Pick<Course, 'course_number' | 'title' | 'description' | 'ai_summary' | 'raw_scraped_content'>;
   section: Pick<CourseSection, 'title' | 'topics'>;
   textbook?: Pick<Textbook, 'title'> | null;
+  /** Earlier sets for the same section whose questions a new set shouldn't repeat. */
+  avoidTestSetIds?: string[];
 }
 
 export interface GenerationOutcome {
@@ -85,6 +88,14 @@ export async function generateTestSet(ctx: GenerationContext): Promise<Generatio
 async function generateTestSetInner(ctx: GenerationContext): Promise<GenerationOutcome> {
   const admin = createAdminClient();
 
+  // Each set records the length the user chose; resuming keeps to it.
+  const { data: setRow } = await admin
+    .from('test_sets')
+    .select('target_count')
+    .eq('id', ctx.testSetId)
+    .maybeSingle();
+  const target = setRow?.target_count || TARGET_QUESTIONS;
+
   // Existing questions let us resume, and seed the duplicate filter.
   const { data: existing } = await admin
     .from('questions')
@@ -93,7 +104,7 @@ async function generateTestSetInner(ctx: GenerationContext): Promise<GenerationO
     .order('position');
 
   const alreadyHave = existing?.length ?? 0;
-  if (alreadyHave >= TARGET_QUESTIONS) {
+  if (alreadyHave >= target) {
     await admin
       .from('test_sets')
       .update({ status: 'complete', question_count: alreadyHave, error: null })
@@ -101,8 +112,19 @@ async function generateTestSetInner(ctx: GenerationContext): Promise<GenerationO
     return { status: 'complete', generated: alreadyHave };
   }
 
-  const duplicates = new DuplicateFilter((existing ?? []).map((q) => q.question));
-  const stems = (existing ?? []).map((q) => q.question.slice(0, 80));
+  // A regenerated test should feel new, so earlier sets' questions count as
+  // duplicates too.
+  const { data: earlier } = ctx.avoidTestSetIds?.length
+    ? await admin
+        .from('questions')
+        .select('question')
+        .in('test_set_id', ctx.avoidTestSetIds)
+        .limit(300)
+    : { data: [] as Array<{ question: string }> };
+
+  const seen = [...(existing ?? []), ...(earlier ?? [])].map((q) => q.question);
+  const duplicates = new DuplicateFilter(seen);
+  const stems = seen.map((q) => q.slice(0, 80));
 
   // Running tally across the whole set, so the top-up pass can close whatever
   // gap the per-batch runs left behind.
@@ -111,7 +133,7 @@ async function generateTestSetInner(ctx: GenerationContext): Promise<GenerationO
     difficulty: q.difficulty as QuestionInput['difficulty'],
   }));
 
-  const plans = buildBatchPlans(TARGET_QUESTIONS, BATCH_SIZE);
+  const plans = buildBatchPlans(target, BATCH_SIZE);
   let position = alreadyHave;
 
   await admin
@@ -123,7 +145,7 @@ async function generateTestSetInner(ctx: GenerationContext): Promise<GenerationO
     // Skip batches already satisfied by a previous run.
     if (position >= (plan.index + 1) * BATCH_SIZE) continue;
 
-    const needed = Math.min(plan.count, TARGET_QUESTIONS - position);
+    const needed = Math.min(plan.count, target - position);
     if (needed <= 0) break;
 
     const accepted: QuestionInput[] = [];
@@ -211,8 +233,8 @@ async function generateTestSetInner(ctx: GenerationContext): Promise<GenerationO
   // A batch can come up a question or two short when the model repeats itself.
   // Rather than call the whole set failed, ask for exactly the questions the
   // set is still missing — which also pulls the final mix back onto target.
-  for (let attempt = 1; attempt <= TOP_UP_ATTEMPTS && position < TARGET_QUESTIONS; attempt++) {
-    const shortfall = globalShortfall(tally, TARGET_QUESTIONS - position);
+  for (let attempt = 1; attempt <= TOP_UP_ATTEMPTS && position < target; attempt++) {
+    const shortfall = globalShortfall(tally, target, target - position);
 
     let topUp: QuestionInput[] = [];
     try {
@@ -224,7 +246,7 @@ async function generateTestSetInner(ctx: GenerationContext): Promise<GenerationO
 
     const fresh: QuestionInput[] = [];
     for (const question of topUp) {
-      if (position + fresh.length >= TARGET_QUESTIONS) break;
+      if (position + fresh.length >= target) break;
       if (duplicates.isDuplicate(question.question)) continue;
       duplicates.accept(question.question);
       stems.push(question.question.slice(0, 80));
@@ -253,20 +275,20 @@ async function generateTestSetInner(ctx: GenerationContext): Promise<GenerationO
     await admin.from('test_sets').update({ question_count: position }).eq('id', ctx.testSetId);
   }
 
-  const complete = position >= TARGET_QUESTIONS;
+  const complete = position >= target;
   await admin
     .from('test_sets')
     .update({
       status: complete ? 'complete' : 'failed',
       question_count: position,
-      error: complete ? null : `Only ${position} of ${TARGET_QUESTIONS} questions could be generated.`,
+      error: complete ? null : `Only ${position} of ${target} questions could be generated.`,
     })
     .eq('id', ctx.testSetId);
 
   return {
     status: complete ? 'complete' : 'failed',
     generated: position,
-    error: complete ? undefined : `Only ${position} of ${TARGET_QUESTIONS} questions could be generated.`,
+    error: complete ? undefined : `Only ${position} of ${target} questions could be generated.`,
   };
 }
 
@@ -312,9 +334,10 @@ function remainingPlan(plan: BatchPlan, accepted: QuestionInput[], needed: numbe
  */
 function globalShortfall(
   tally: Array<Pick<QuestionInput, 'type' | 'difficulty'>>,
+  setSize: number,
   missing: number,
 ): BatchPlan {
-  const target = buildBatchPlans(TARGET_QUESTIONS, TARGET_QUESTIONS)[0];
+  const target = buildBatchPlans(setSize, setSize)[0];
   const haveTypes = countBy(tally as QuestionInput[], (q) => q.type);
   const haveDifficulties = countBy(tally as QuestionInput[], (q) => q.difficulty);
   const gap = (t: number, have: number | undefined) => Math.max(0, t - (have ?? 0));

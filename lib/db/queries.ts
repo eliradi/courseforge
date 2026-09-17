@@ -560,6 +560,7 @@ export interface TestHistoryEntry {
   courseTitle: string;
   collegeName: string;
   departmentCode: string;
+  sectionId: string;
   sectionTitle: string;
   questionCount: number;
   /** Newest first. */
@@ -611,7 +612,7 @@ export async function getTestHistory(userId: string | null): Promise<TestHistory
     .from('attempts')
     .select(
       'id, score, total_questions, submitted_at, test_set_id, ' +
-        'test_sets!inner(question_count, course_sections!inner(title, courses!inner(id, course_number, title, departments!inner(code, colleges!inner(name, short_name)))))',
+        'test_sets!inner(question_count, course_sections!inner(id, title, courses!inner(id, course_number, title, departments!inner(code, colleges!inner(name, short_name)))))',
     )
     .eq('user_id', userId)
     .not('submitted_at', 'is', null)
@@ -631,6 +632,7 @@ export async function getTestHistory(userId: string | null): Promise<TestHistory
     test_sets: {
       question_count: number;
       course_sections: {
+        id: string;
         title: string;
         courses: {
           id: string;
@@ -674,6 +676,7 @@ export async function getTestHistory(userId: string | null): Promise<TestHistory
       courseTitle: course.title,
       collegeName: course.departments.colleges.short_name ?? course.departments.colleges.name,
       departmentCode: course.departments.code,
+      sectionId: section.id,
       sectionTitle: section.title,
       questionCount: row.test_sets.question_count,
       attempts: [attempt],

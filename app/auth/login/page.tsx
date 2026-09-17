@@ -1,6 +1,9 @@
-import { GraduationCap } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import type { Metadata } from 'next';
+import Link from 'next/link';
 
+import { BrandLogo } from '@/components/layout/brand-logo';
+import { FloatingThemeToggle } from '@/components/layout/landing-controls';
 import { LoginForm } from '@/components/layout/login-form';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
@@ -15,12 +18,14 @@ export default async function LoginPage({
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-col justify-center px-4 py-20">
+      <FloatingThemeToggle />
       <Card>
         <CardHeader className="text-center">
-          <div className="bg-primary/10 text-primary mx-auto mb-3 flex size-11 items-center justify-center rounded-xl">
-            <GraduationCap className="size-5" />
-          </div>
-          <CardTitle className="text-xl">Sign in to Aceversity</CardTitle>
+          <CardTitle className="mx-auto mb-2">
+            <h1>
+              <BrandLogo alt="Sign in to Aceversity" imageClassName="h-16 sm:h-20" priority />
+            </h1>
+          </CardTitle>
           <CardDescription>
             Browsing catalogs is open to everyone. Generating and taking tests needs an account.
           </CardDescription>
@@ -29,6 +34,13 @@ export default async function LoginPage({
           <LoginForm redirectTo={next ?? '/'} initialError={error} />
         </CardContent>
       </Card>
+      <Link
+        href="/"
+        className="text-muted-foreground hover:text-primary mx-auto mt-4 inline-flex items-center gap-1 text-sm transition-colors"
+      >
+        <ArrowLeft className="size-3.5" />
+        Back to home
+      </Link>
     </div>
   );
 }

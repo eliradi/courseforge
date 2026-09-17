@@ -16,6 +16,25 @@ test('a 100-question set is split into four batches of 25', () => {
   for (const plan of plans) assert.equal(plan.count, 25);
 });
 
+test('every selectable test length plans exactly that many questions', () => {
+  for (const total of [10, 25, 40, 70, 100]) {
+    const plans = buildBatchPlans(total, 25);
+    assert.equal(plans.length, Math.ceil(total / 25));
+    const sum = (pick: (p: (typeof plans)[number]) => number) =>
+      plans.reduce((acc, plan) => acc + pick(plan), 0);
+    assert.equal(sum((p) => p.count), total);
+    assert.equal(sum((p) => p.types.mcq + p.types.true_false + p.types.short_answer), total);
+    assert.equal(sum((p) => p.difficulties.easy + p.difficulties.medium + p.difficulties.hard), total);
+  }
+});
+
+test('a 10-question set keeps every question type and difficulty', () => {
+  const [plan] = buildBatchPlans(10, 25);
+  assert.equal(plan.types.mcq, 7);
+  assert.ok(plan.types.true_false >= 1 && plan.types.short_answer >= 1);
+  assert.ok(plan.difficulties.easy >= 1 && plan.difficulties.hard >= 1);
+});
+
 test('the type mix across a full set is exactly 70 MCQ / 15 T-F / 15 short answer', () => {
   const plans = buildBatchPlans(100, 25);
   const total = (key: 'mcq' | 'true_false' | 'short_answer') =>

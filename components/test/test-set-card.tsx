@@ -180,7 +180,7 @@ export function TestSetCard({
               <Play className="size-3.5" />
               Take test
             </Button>
-            <Button size="sm" variant="outline" nativeButton={false} render={<a href={`/test/${testSet.id}?review=1`} />}>
+            <Button size="sm" variant="outline" nativeButton={false} render={<a href={`/test/${testSet.id}/results`} />}>
               Review answers
             </Button>
             <Button

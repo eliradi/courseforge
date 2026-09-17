@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 
+import { HideOnPaths } from '@/components/layout/hide-on-paths';
 import { SiteFooter } from '@/components/layout/site-footer';
 import { SiteHeader } from '@/components/layout/site-header';
 import { ThemeProvider } from '@/components/layout/theme-provider';
@@ -21,16 +22,24 @@ export const metadata: Metadata = {
     template: '%s · Aceversity',
   },
   description:
-    'Browse the course catalog of top-ranked worldwide universities, then generate 100 practice questions for every section of a course.',
+    'Browse the course catalog of top-ranked worldwide universities, then generate practice questions for every section of a course.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} h-full antialiased`} suppressHydrationWarning>
+    <html
+      lang="en"
+      className={`${inter.variable} h-full scroll-smooth antialiased`}
+      // Lets Next turn smooth scrolling off during route changes.
+      data-scroll-behavior="smooth"
+      suppressHydrationWarning
+    >
       <body className="bg-background text-foreground flex min-h-full flex-col">
         <ThemeProvider>
           <TooltipProvider delay={200}>
-            <SiteHeader />
+            <HideOnPaths paths={['/', '/auth/login']}>
+              <SiteHeader />
+            </HideOnPaths>
             <main className="flex-1">{children}</main>
             <SiteFooter />
           </TooltipProvider>

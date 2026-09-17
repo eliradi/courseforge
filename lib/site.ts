@@ -49,7 +49,7 @@ export const FOOTER_NAV = [
     title: 'Product',
     links: [
       { href: '/', label: 'Explore courses' },
-      { href: '/auth/login', label: 'Sign in' },
+      { href: '/auth/login', label: 'Start Acing' },
       { href: '/support', label: 'Help center' },
     ],
   },

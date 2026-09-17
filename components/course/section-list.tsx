@@ -8,6 +8,9 @@ import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { QuestionCountPicker } from '@/components/test/question-count-picker';
+import { generateTestForSection } from '@/lib/generation-client';
+import { DEFAULT_QUESTION_COUNT, type QuestionCount } from '@/lib/question-counts';
 import type { CourseSection, SectionSource, TestSet } from '@/lib/supabase/types';
 
 const SOURCE_LABELS: Record<SectionSource, string> = {
@@ -39,6 +42,7 @@ export function SectionList({
   const router = useRouter();
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [busy, setBusy] = useState(false);
+  const [questionCount, setQuestionCount] = useState<QuestionCount>(DEFAULT_QUESTION_COUNT);
 
   const completeBySection = new Map(
     existingSets.filter((s) => s.status === 'complete').map((s) => [s.course_section_id, s]),
@@ -46,92 +50,33 @@ export function SectionList({
 
   /** Streams one section's generation run, updating its row as batches land. */
   async function generateOne(sectionId: string): Promise<boolean> {
-    setQueue((prev) =>
-      prev.map((item) => (item.sectionId === sectionId ? { ...item, status: 'running' } : item)),
-    );
-
-    try {
-      const response = await fetch('/api/test-sets/generate', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ courseSectionId: sectionId }),
-      });
-
-      if (!response.ok || !response.body) {
-        const body = await response.json().catch(() => ({ error: 'Generation failed' }));
-        throw new Error(body.error ?? `Server responded ${response.status}`);
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let ok = false;
-
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const frames = buffer.split('\n\n');
-        buffer = frames.pop() ?? '';
-
-        for (const frame of frames) {
-          const line = frame.split('\n').find((l) => l.startsWith('data: '));
-          if (!line) continue;
-          let event: { type: string; message?: string; payload?: { generated?: number; status?: string } };
-          try {
-            event = JSON.parse(line.slice(6));
-          } catch {
-            continue;
-          }
-
-          if (event.type === 'progress') {
-            const match = event.message?.match(/(\d+)\s*\/\s*100/);
-            setQueue((prev) =>
-              prev.map((item) =>
-                item.sectionId === sectionId
-                  ? {
-                      ...item,
-                      message: event.message,
-                      generated: match ? Number(match[1]) : item.generated,
-                    }
-                  : item,
-              ),
-            );
-          } else if (event.type === 'done') {
-            ok = event.payload?.status === 'complete';
-            setQueue((prev) =>
-              prev.map((item) =>
-                item.sectionId === sectionId
-                  ? {
-                      ...item,
-                      status: ok ? 'done' : 'failed',
-                      generated: event.payload?.generated ?? item.generated,
-                      message: ok ? 'Complete' : 'Partly generated — you can resume it',
-                    }
-                  : item,
-              ),
-            );
-          } else if (event.type === 'error') {
-            setQueue((prev) =>
-              prev.map((item) =>
-                item.sectionId === sectionId
-                  ? { ...item, status: 'failed', message: event.message }
-                  : item,
-              ),
-            );
-            return false;
-          }
-        }
-      }
-
-      return ok;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Generation failed';
+    const update = (patch: Partial<QueueItem>) =>
       setQueue((prev) =>
-        prev.map((item) =>
-          item.sectionId === sectionId ? { ...item, status: 'failed', message } : item,
-        ),
+        prev.map((item) => (item.sectionId === sectionId ? { ...item, ...patch } : item)),
       );
+
+    update({ status: 'running' });
+    try {
+      const outcome = await generateTestForSection(sectionId, questionCount, (generated, target) =>
+        update({ generated, message: `${generated}/${target} questions` }),
+      );
+      if (outcome.ok) {
+        update({ status: 'done', generated: outcome.generated ?? questionCount, message: 'Complete' });
+        return true;
+      }
+      update({
+        status: 'failed',
+        generated: outcome.generated ?? 0,
+        message: outcome.generated
+          ? 'Partly generated — you can resume it'
+          : (outcome.error ?? 'Generation failed'),
+      });
+      return false;
+    } catch (error) {
+      update({
+        status: 'failed',
+        message: error instanceof Error ? error.message : 'Generation failed',
+      });
       return false;
     }
   }
@@ -153,7 +98,7 @@ export function SectionList({
 
     if (succeeded === sectionIds.length) {
       toast.success(
-        succeeded === 1 ? 'Test ready — 100 questions' : `${succeeded} tests ready`,
+        succeeded === 1 ? `Test ready — ${questionCount} questions` : `${succeeded} tests ready`,
         { description: 'Open the test dashboard to take them.' },
       );
     } else {
@@ -177,15 +122,23 @@ export function SectionList({
           {sectionSource ? ` · ${SOURCE_LABELS[sectionSource]}` : ''}
         </p>
 
-        <Button
-          size="sm"
-          disabled={busy || Boolean(disabledReason)}
-          title={disabledReason ?? undefined}
-          onClick={() => void run(sections.map((s) => s.id))}
-        >
-          {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
-          Create tests for all sections
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-muted-foreground text-xs">Questions per test</span>
+          <QuestionCountPicker
+            value={questionCount}
+            onChange={setQuestionCount}
+            disabled={busy}
+          />
+          <Button
+            size="sm"
+            disabled={busy || Boolean(disabledReason)}
+            title={disabledReason ?? undefined}
+            onClick={() => void run(sections.map((s) => s.id))}
+          >
+            {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
+            Create tests for all sections
+          </Button>
+        </div>
       </div>
 
       {disabledReason ? (
@@ -242,20 +195,20 @@ export function SectionList({
                     ) : (
                       <ListChecks className="size-3.5" />
                     )}
-                    {existing ? 'Generate fresh' : 'Create test (100 Qs)'}
+                    {existing ? `Generate fresh (${questionCount} Qs)` : `Create test (${questionCount} Qs)`}
                   </Button>
                 </div>
               </div>
 
               {queued && queued.status !== 'queued' ? (
                 <div className="mt-3 space-y-1.5">
-                  <Progress value={queued.generated} max={100} className="h-1.5" />
+                  <Progress value={queued.generated} max={questionCount} className="h-1.5" />
                   <p
                     className={`text-xs ${
                       queued.status === 'failed' ? 'text-destructive' : 'text-muted-foreground'
                     }`}
                   >
-                    {queued.message ?? `${queued.generated}/100 questions`}
+                    {queued.message ?? `${queued.generated}/${questionCount} questions`}
                   </p>
                 </div>
               ) : queued?.status === 'queued' ? (

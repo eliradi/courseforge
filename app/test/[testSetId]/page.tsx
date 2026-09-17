@@ -6,11 +6,12 @@ import { notFound, redirect } from 'next/navigation';
 import { Breadcrumbs } from '@/components/layout/breadcrumbs';
 import { EmptyState } from '@/components/layout/empty-state';
 import { Quiz } from '@/components/test/quiz';
-import { ScoreReport, type GradedQuestion } from '@/components/test/score-report';
+import { ScoreReport } from '@/components/test/score-report';
 import { Button } from '@/components/ui/button';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getUser } from '@/lib/supabase/server';
-import type { Attempt, AttemptAnswer, Course, CourseSection, Question, TestSet } from '@/lib/supabase/types';
+import type { Attempt, Course, CourseSection, TestSet } from '@/lib/supabase/types';
+import { loadAttemptReport } from '@/lib/db/attempt-report';
 import { getCourseContext, listQuestions } from '@/lib/db/queries';
 
 export const metadata: Metadata = { title: 'Take test' };
@@ -82,7 +83,7 @@ export default async function TestPage({
 
   // Review mode: show the most recent submitted attempt instead of a fresh quiz.
   if (review) {
-    const graded = await loadLatestAttempt(testSetId, user.id, questions);
+    const graded = await loadAttemptReport(testSetId, user.id, questions);
 
     return (
       <div className="mx-auto w-full max-w-4xl px-4 py-10">
@@ -153,51 +154,4 @@ export default async function TestPage({
       />
     </div>
   );
-}
-
-/** Rebuilds the graded view for the user's most recent submitted attempt. */
-async function loadLatestAttempt(
-  testSetId: string,
-  userId: string,
-  questions: Question[],
-): Promise<{ rows: GradedQuestion[]; score: number; total: number } | null> {
-  const admin = createAdminClient();
-
-  const { data: attemptRow } = await admin
-    .from('attempts')
-    .select('*')
-    .eq('test_set_id', testSetId)
-    .eq('user_id', userId)
-    .not('submitted_at', 'is', null)
-    .order('submitted_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (!attemptRow) return null;
-  const attempt = attemptRow as Attempt;
-
-  const { data: answerRows } = await admin
-    .from('attempt_answers')
-    .select('*')
-    .eq('attempt_id', attempt.id);
-
-  const answers = new Map(
-    ((answerRows ?? []) as AttemptAnswer[]).map((a) => [a.question_id, a]),
-  );
-
-  const rows: GradedQuestion[] = questions.map((question) => {
-    const answer = answers.get(question.id);
-    return {
-      question,
-      given: answer?.answer ?? null,
-      correct: answer?.is_correct ?? false,
-      flagged: answer?.flagged ?? false,
-    };
-  });
-
-  return {
-    rows,
-    score: attempt.score ?? rows.filter((r) => r.correct).length,
-    total: attempt.total_questions || questions.length,
-  };
 }

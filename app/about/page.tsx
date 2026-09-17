@@ -25,7 +25,7 @@ const PILLARS = [
   {
     icon: Sparkles,
     title: 'Practice that matches the syllabus',
-    body: 'A hundred practice questions for every section, written to the course’s own topics and difficulty.',
+    body: 'Practice tests of 10 to 100 questions for every section, written to the course’s own topics and difficulty.',
   },
   {
     icon: Target,
