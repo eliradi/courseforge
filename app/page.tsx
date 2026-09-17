@@ -6,7 +6,7 @@ import { FavoritesSection } from '@/components/college/favorites-section';
 import { HomeSearch } from '@/components/college/home-search';
 import { TestHistorySection } from '@/components/dashboard/test-history';
 import { BrandLogo } from '@/components/layout/brand-logo';
-import { AccountAction, FloatingControls } from '@/components/layout/landing-controls';
+import { FloatingControls, StartAcingButton } from '@/components/layout/landing-controls';
 import { PricingSection } from '@/components/marketing/pricing-section';
 import {
   getCollegeStats,
@@ -16,6 +16,7 @@ import {
   listFavorites,
 } from '@/lib/db/queries';
 import { getUser } from '@/lib/supabase/server';
+import { cn } from '@/lib/utils';
 
 // Stats move whenever someone takes a test, so this page is rendered per request.
 export const dynamic = 'force-dynamic';
@@ -50,19 +51,28 @@ export default async function HomePage() {
   }));
 
   return (
-    <div id="top" className="mx-auto w-full max-w-4xl px-4 pt-16 pb-16 sm:pt-14 sm:pb-24">
-      <FloatingControls signedIn={Boolean(user)} />
-
-      {/* The landing page has no header, so the full logo leads it. */}
-      <BrandLogo
-        alt="Aceversity — Ace Your University Journey"
-        imageClassName="h-20 sm:h-28"
-        className="mx-auto"
-        priority
-      />
-      <div className="mt-5 mb-12 flex justify-center">
-        <AccountAction signedIn={Boolean(user)} />
-      </div>
+    <div
+      id="top"
+      className={cn(
+        'mx-auto w-full max-w-4xl px-4 pb-16 sm:pb-24',
+        user ? 'pt-10 sm:pt-14' : 'pt-16 sm:pt-14',
+      )}
+    >
+      {/* Signed-in visitors get the regular site header instead (see SiteHeader). */}
+      {user ? null : (
+        <>
+          <FloatingControls />
+          <BrandLogo
+            alt="Aceversity — Ace Your University Journey"
+            imageClassName="h-20 sm:h-28"
+            className="mx-auto"
+            priority
+          />
+          <div className="mt-5 mb-12 flex justify-center">
+            <StartAcingButton />
+          </div>
+        </>
+      )}
 
       {user ? (
         <>
@@ -75,17 +85,20 @@ export default async function HomePage() {
         <p className="text-primary mb-3 text-sm font-medium">
           {colleges.length} universities · live catalogs
         </p>
-        <h1 className="text-4xl font-semibold sm:text-5xl">
+        {/* Half-size for signed-in users, who are here to search rather than read the pitch. */}
+        <h1 className={cn('font-semibold', user ? 'text-xl sm:text-2xl' : 'text-4xl sm:text-5xl')}>
           <span className="text-primary">Explore any college course.</span>
           <br />
           <span className="text-brand-teal">Then test yourself on it.</span>
         </h1>
-        <p className="text-muted-foreground mx-auto mt-5 max-w-xl text-lg">
-          Aceversity reads a university&apos;s own course catalog, builds a full profile of the
-          course you pick, and generates practice questions for every section.
-        </p>
+        {user ? null : (
+          <p className="text-muted-foreground mx-auto mt-5 max-w-xl text-lg">
+            Aceversity reads a university&apos;s own course catalog, builds a full profile of the
+            course you pick, and generates practice questions for every section.
+          </p>
+        )}
 
-        <div className="mx-auto mt-10 max-w-xl">
+        <div className={cn('mx-auto max-w-xl', user ? 'mt-6' : 'mt-10')}>
           {user ? (
             <HomeSearch colleges={options} />
           ) : (
@@ -95,47 +108,52 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <section className="mt-24 text-center">
-        <p className="text-brand-teal text-sm font-semibold">How it works</p>
-        <h2 className="text-primary mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">
-          Two steps to exam-ready
-        </h2>
+      {/* Signed-in visitors already know the product; the pitch is for newcomers. */}
+      {user ? null : (
+        <>
+          <section className="mt-24 text-center">
+            <p className="text-brand-teal text-sm font-semibold">How it works</p>
+            <h2 className="text-primary mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">
+              Two steps to exam-ready
+            </h2>
 
-        <div className="relative mx-auto mt-10 max-w-3xl">
-          {/* Connector between the steps on wider screens. */}
-          <span
-            aria-hidden
-            className="bg-background text-muted-foreground absolute top-1/2 left-1/2 z-10 hidden size-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border shadow-sm sm:flex"
-          >
-            <ArrowRight className="size-4" />
-          </span>
-          <ol className="grid gap-8 sm:grid-cols-2 sm:gap-10">
-            {STEPS.map((step, index) => (
-              <li
-                key={step.title}
-                className="group from-primary/[0.05] to-brand-teal/[0.06] bg-card relative flex flex-col items-center rounded-3xl border bg-gradient-to-b px-6 pt-9 pb-7 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md"
+            <div className="relative mx-auto mt-10 max-w-3xl">
+              {/* Connector between the steps on wider screens. */}
+              <span
+                aria-hidden
+                className="bg-background text-muted-foreground absolute top-1/2 left-1/2 z-10 hidden size-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border shadow-sm sm:flex"
               >
-                <span className="from-primary to-brand-teal absolute -top-3.5 flex size-7 items-center justify-center rounded-full bg-gradient-to-br text-xs font-bold text-white shadow-sm ring-4 ring-background">
-                  {index + 1}
-                </span>
-                <Image
-                  src={step.image}
-                  alt=""
-                  width={256}
-                  height={256}
-                  className="size-20 drop-shadow-md transition-transform duration-300 group-hover:scale-105"
-                />
-                <h3 className="mt-5 text-lg font-semibold tracking-tight">{step.title}</h3>
-                <p className="text-muted-foreground mt-2 max-w-xs text-sm leading-relaxed">
-                  {step.body}
-                </p>
-              </li>
-            ))}
-          </ol>
-        </div>
-      </section>
+                <ArrowRight className="size-4" />
+              </span>
+              <ol className="grid gap-8 sm:grid-cols-2 sm:gap-10">
+                {STEPS.map((step, index) => (
+                  <li
+                    key={step.title}
+                    className="group from-primary/[0.05] to-brand-teal/[0.06] bg-card relative flex flex-col items-center rounded-3xl border bg-gradient-to-b px-6 pt-9 pb-7 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md"
+                  >
+                    <span className="from-primary to-brand-teal absolute -top-3.5 flex size-7 items-center justify-center rounded-full bg-gradient-to-br text-xs font-bold text-white shadow-sm ring-4 ring-background">
+                      {index + 1}
+                    </span>
+                    <Image
+                      src={step.image}
+                      alt=""
+                      width={256}
+                      height={256}
+                      className="size-20 drop-shadow-md transition-transform duration-300 group-hover:scale-105"
+                    />
+                    <h3 className="mt-5 text-lg font-semibold tracking-tight">{step.title}</h3>
+                    <p className="text-muted-foreground mt-2 max-w-xs text-sm leading-relaxed">
+                      {step.body}
+                    </p>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </section>
 
-      <PricingSection signedIn={Boolean(user)} />
+          <PricingSection />
+        </>
+      )}
     </div>
   );
 }

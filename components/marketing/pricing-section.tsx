@@ -36,7 +36,7 @@ const PLANS = [
   },
 ];
 
-export function PricingSection({ signedIn }: { signedIn: boolean }) {
+export function PricingSection() {
   return (
     <section id="pricing" className="mt-24 scroll-mt-8 text-center">
       <p className="text-brand-teal text-sm font-semibold">Pricing</p>
@@ -87,9 +87,9 @@ export function PricingSection({ signedIn }: { signedIn: boolean }) {
               className="mt-7 w-full rounded-full"
               variant={plan.featured ? 'default' : 'outline'}
               nativeButton={false}
-              render={<Link href={signedIn ? '/#top' : '/auth/login'} />}
+              render={<Link href="/auth/login" />}
             >
-              {signedIn ? 'Keep acing' : 'Start Acing'}
+              Start Acing
             </Button>
           </div>
         ))}

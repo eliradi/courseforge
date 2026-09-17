@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 
-import { HideOnPaths } from '@/components/layout/hide-on-paths';
 import { SiteFooter } from '@/components/layout/site-footer';
 import { SiteHeader } from '@/components/layout/site-header';
 import { ThemeProvider } from '@/components/layout/theme-provider';
@@ -37,9 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="bg-background text-foreground flex min-h-full flex-col">
         <ThemeProvider>
           <TooltipProvider delay={200}>
-            <HideOnPaths paths={['/', '/auth/login']}>
-              <SiteHeader />
-            </HideOnPaths>
+            <SiteHeader />
             <main className="flex-1">{children}</main>
             <SiteFooter />
           </TooltipProvider>

@@ -3,9 +3,20 @@ import Image from 'next/image';
 import Link from 'next/link';
 
 import { FOOTER_NAV, SITE, SOCIAL_LINKS } from '@/lib/site';
+import { getUser } from '@/lib/supabase/server';
 
-export function SiteFooter() {
+export async function SiteFooter() {
   const year = new Date().getFullYear();
+  const user = await getUser();
+
+  // Signed-in pages stay uncluttered: just the copyright line.
+  if (user) {
+    return (
+      <footer className="no-print text-muted-foreground border-t py-5 text-center text-xs">
+        © {year} {SITE.name}. All rights reserved.
+      </footer>
+    );
+  }
 
   return (
     <footer className="no-print bg-muted/40 border-t">

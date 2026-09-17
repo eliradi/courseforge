@@ -1,7 +1,6 @@
 'use client';
 
 import { CheckCircle2, Flag, RotateCcw, XCircle } from 'lucide-react';
-import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
 import { QuestionText } from '@/components/test/question-text';
@@ -77,17 +76,12 @@ export function ScoreReport({
 
           <div className="flex-1" />
 
-          <div className="flex flex-wrap gap-2">
-            {onRetake ? (
-              <Button variant="outline" onClick={onRetake}>
-                <RotateCcw className="size-4" />
-                Retake
-              </Button>
-            ) : null}
-            <Button variant="outline" nativeButton={false} render={<Link href="/" />}>
-              Browse more courses
+          {onRetake ? (
+            <Button variant="outline" onClick={onRetake}>
+              <RotateCcw className="size-4" />
+              Retake
             </Button>
-          </div>
+          ) : null}
         </CardContent>
       </Card>
 
