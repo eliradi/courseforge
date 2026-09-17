@@ -1,5 +1,3 @@
-import Link from 'next/link';
-
 import { signOut } from '@/app/actions/auth';
 import { BrandLogo } from '@/components/layout/brand-logo';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
@@ -24,16 +22,7 @@ export async function SiteHeader() {
               Sign out
             </Button>
           </form>
-        ) : (
-          <Button
-            size="sm"
-            variant="outline"
-            nativeButton={false}
-            render={<Link href="/auth/login" />}
-          >
-            Start Acing
-          </Button>
-        )}
+        ) : null}
       </div>
     </header>
   );

@@ -5,7 +5,7 @@ import { signOut } from '@/app/actions/auth';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
 import { Button } from '@/components/ui/button';
 
-/** Landing-page stand-in for the header: pricing, login and theme toggle, pinned top-right. */
+/** Landing-page stand-in for the header: pricing, login, sign-up and theme toggle, pinned top-right. */
 export function FloatingControls({ signedIn }: { signedIn: boolean }) {
   return (
     <div className="no-print fixed top-4 right-4 z-50 flex items-center gap-2">
@@ -23,12 +23,34 @@ export function FloatingControls({ signedIn }: { signedIn: boolean }) {
         />
       </Link>
       {signedIn ? null : (
-        <Link
-          href="/auth/login"
-          className="bg-background/80 text-foreground hover:text-primary hover:border-primary/40 flex h-9 items-center rounded-full border px-4 text-sm font-semibold tracking-wide shadow-sm backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5"
-        >
-          Login
-        </Link>
+        <>
+          {/* Gradient hairline border around a frosted pill; on hover the
+            gradient fills it and the label turns white. */}
+          <Link
+            href="/auth/login"
+            className="group flex h-9 rounded-full bg-gradient-to-r from-[#115388] to-[#0ba297] p-px shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-[#115388]/25"
+          >
+            <span className="bg-background/90 flex items-center rounded-full px-4 text-sm font-semibold tracking-wide backdrop-blur-md transition-colors duration-200 group-hover:bg-transparent">
+              <span className="bg-gradient-to-r from-[#115388] to-[#0ba297] bg-clip-text text-transparent transition-colors duration-200 group-hover:text-white dark:from-[#7fb0e6] dark:to-[#2dd4bf]">
+                Login
+              </span>
+            </span>
+          </Link>
+
+          {/* Deep-navy pill inside a slowly turning brand-gradient ring. */}
+          <Link
+            href="/auth/login"
+            className="group relative flex h-9 overflow-hidden rounded-full p-[1.5px] shadow-md shadow-[#0ba297]/25 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-[#0ba297]/40"
+          >
+            <span
+              aria-hidden
+              className="absolute inset-[-150%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_0deg,#115388,#0ba297,#8ff0e0,#0ba297,#115388)] motion-reduce:animate-none"
+            />
+            <span className="relative flex items-center rounded-full bg-[#0b2540] px-4 text-sm font-semibold tracking-wide text-white transition-colors duration-200 group-hover:bg-[#0e3257]">
+              Sign Up
+            </span>
+          </Link>
+        </>
       )}
       <ThemePill />
     </div>
