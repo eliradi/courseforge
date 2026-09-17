@@ -2,7 +2,7 @@ import { chromium, type Browser, type BrowserContext } from 'playwright';
 
 export const USER_AGENT =
   process.env.SCRAPER_USER_AGENT ??
-  'CourseForgeBot/1.0 (+https://github.com/courseforge/courseforge; educational course-catalog indexer)';
+  'AceversityBot/1.0 (+https://github.com/aceversity/aceversity; educational course-catalog indexer)';
 
 const MAX_CONTEXTS = Number(process.env.MAX_CONCURRENT_CONTEXTS ?? 3);
 

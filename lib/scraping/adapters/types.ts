@@ -51,20 +51,20 @@ export function clean(text: string | undefined | null): string {
 const CREDIT_PATTERNS: RegExp[] = [
   // "credit: 1 Hour." / "credit: 3 to 5 Hours."
   /\s*[.,;:—–-]?\s*credits?\s*:\s*([^.]*?(?:credit\s*hours?|hours?|units?|credits?))\s*\.?\s*$/i,
-  // "3 Units" / "4 credits" / "0-12 units", optionally parenthesised
-  /\s*[.,;—–-]?\s*\(?\s*((?:\d+(?:\.\d+)?)(?:\s*(?:-|–|to)\s*\d+(?:\.\d+)?)?\s*(?:credit\s*hours?|credits?|units?|hours?))\s*\.?\s*\)?\s*$/i,
+  // "3 Units" / "4 credits" / "0-12 units" / Iowa's "3 s.h.", optionally parenthesised
+  /\s*[.,;—–-]?\s*\(?\s*((?:\d+(?:\.\d+)?)(?:\s*(?:-|–|to)\s*\d+(?:\.\d+)?)?\s*(?:credit\s*hours?|credits?|units?|hours?|s\.\s?h\.?))\s*\.?\s*\)?\s*$/i,
   // Bare "(3)" or "(1-4)"
   /\s*\(\s*(\d+(?:\.\d+)?(?:\s*(?:-|–|to)\s*\d+(?:\.\d+)?)?)\s*\)\s*$/,
 ];
 
 /**
  * Course numbers come in two families:
- *   letter-led  — "CS 229", "MATH-101", "ECON 101A"
- *   digit-led   — MIT style "6.1000", "18.01", "21A.100"
+ *   letter-led  — "CS 229", "MATH-101", "ECON 101A", Iowa's "ACCT:3500"
+ *   digit-led   — MIT style "6.1000", "18.01", "21A.100", cross-listed "1.63[J]"
  */
 const NUMBER_PATTERNS: RegExp[] = [
-  /^([A-Za-z][A-Za-z&./]{0,9}[\s-]?\d[\w.\-/]*(?:\s*\[[A-Z]\])?)\s*[-–—:.]?\s+(.+)$/,
-  /^(\d+[A-Za-z]?(?:\.[\w.]+)?)\s*[-–—:.]?\s+(.+)$/,
+  /^([A-Za-z][A-Za-z&./]{0,9}[\s:-]?\d[\w.\-/]*(?:\s*\[[A-Z]\])?)\s*[-–—:.]?\s+(.+)$/,
+  /^(\d+[A-Za-z]?(?:\.[\w.]+)?(?:\[[A-Z]\])?)\s*[-–—:.]?\s+(.+)$/,
 ];
 
 /** Splits "CS 229 Machine Learning (3)" into its parts. */

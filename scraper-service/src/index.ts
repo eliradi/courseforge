@@ -65,7 +65,7 @@ function errorBody(err: unknown) {
 app.get('/health', async (c) =>
   c.json({
     ok: true,
-    service: 'courseforge-scraper',
+    service: 'aceversity-scraper',
     browser: await browserHealthy(),
     pool: poolStats(),
     userAgent: USER_AGENT,

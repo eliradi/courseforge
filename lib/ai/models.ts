@@ -14,6 +14,14 @@ export const PRIMARY_MODEL = process.env.AI_PRIMARY_MODEL ?? 'anthropic/claude-s
 /** Summaries, extraction cleanup, catalog confirmation — high volume, low stakes. */
 export const FAST_MODEL = process.env.AI_FAST_MODEL ?? 'anthropic/claude-haiku-4.5';
 
+/**
+ * Course embeddings for "similar courses". Changing it means re-embedding every
+ * course (`pnpm embed-courses`); the stored vectors are 1536-dimensional, so a
+ * replacement must produce that size too.
+ */
+export const EMBEDDING_MODEL = process.env.AI_EMBEDDING_MODEL ?? 'openai/text-embedding-3-small';
+export const EMBEDDING_DIMENSIONS = 1536;
+
 export function isAiConfigured(): boolean {
   return Boolean(process.env.AI_GATEWAY_API_KEY);
 }

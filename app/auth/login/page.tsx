@@ -20,7 +20,7 @@ export default async function LoginPage({
           <div className="bg-primary/10 text-primary mx-auto mb-3 flex size-11 items-center justify-center rounded-xl">
             <GraduationCap className="size-5" />
           </div>
-          <CardTitle className="text-xl">Sign in to CourseForge</CardTitle>
+          <CardTitle className="text-xl">Sign in to Aceversity</CardTitle>
           <CardDescription>
             Browsing catalogs is open to everyone. Generating and taking tests needs an account.
           </CardDescription>

@@ -60,7 +60,7 @@ const LEVEL_STYLES: Record<TraceLine['level'], { icon: typeof Info; className: s
 
 /** Console styling per level, so a run is scannable in devtools too. */
 const CONSOLE_STYLES: Record<TraceLine['level'], string> = {
-  step: 'color:#6366f1;font-weight:600',
+  step: 'color:#115388;font-weight:600',
   request: 'color:#64748b',
   info: 'color:#64748b',
   success: 'color:#059669;font-weight:600',
@@ -110,14 +110,14 @@ export function RetrievalDialog({
     // survives both StrictMode and a genuine prop change.
     const controller = new AbortController();
     const collected: TraceLine[] = [];
-    const label = `[CourseForge] ${mode === 'probe' ? 'Check method' : 'Retrieve'} · ${collegeName}`;
+    const label = `[Aceversity] ${mode === 'probe' ? 'Check method' : 'Retrieve'} · ${collegeName}`;
 
     // Opened lazily on the first event so an aborted run logs nothing.
     let groupOpen = false;
     const openGroup = () => {
       if (groupOpen) return;
       groupOpen = true;
-      console.groupCollapsed(`%c${label}`, 'color:#6366f1;font-weight:700');
+      console.groupCollapsed(`%c${label}`, 'color:#115388;font-weight:700');
       console.info('college id:', collegeId, '· mode:', mode);
     };
 

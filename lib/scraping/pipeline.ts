@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { embedCoursesQuietly } from '@/lib/ai/embeddings';
 import { generateCourseSummary } from '@/lib/ai/summary';
 import { withUsageContext } from '@/lib/ai/usage';
 import { recordOperationRun } from '@/lib/db/operation-runs';
@@ -279,6 +280,19 @@ async function ensureCoursesInner(
   options.onProgress?.(`Saving ${courses.length} courses`);
   const saved = await upsertCourses(departmentId, courses);
 
+  // Keep "similar courses" current. Unchanged courses are skipped by hash.
+  options.onProgress?.('Indexing courses for similar-course search');
+  await embedCoursesQuietly(
+    saved.map((c) => ({
+      id: c.id,
+      collegeId: department.college_id,
+      courseNumber: c.course_number,
+      title: c.title,
+      description: c.description,
+      departmentName: department.name,
+    })),
+  );
+
   return { courses: saved.sort(byCourseNumber), fromCache: false, empty: false };
 }
 
@@ -378,6 +392,16 @@ async function ensureCourseProfileInner(
         instructors: detail.instructors ?? course.instructors,
         detail_scraped_at: new Date().toISOString(),
       } as Course;
+      await embedCoursesQuietly([
+        {
+          id: course.id,
+          collegeId: college.id,
+          courseNumber: course.course_number,
+          title: course.title,
+          description: course.description,
+          departmentName: department.name,
+        },
+      ]);
     } catch (error) {
       // A detail failure is not fatal — we still have the list-level record.
       console.error('[pipeline] course detail failed:', error);

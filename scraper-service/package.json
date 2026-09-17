@@ -1,9 +1,9 @@
 {
-  "name": "courseforge-scraper",
+  "name": "aceversity-scraper",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Self-hosted Playwright scraping service for CourseForge.",
+  "description": "Self-hosted Playwright scraping service for Aceversity.",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",

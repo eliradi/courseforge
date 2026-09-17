@@ -376,6 +376,85 @@ export type Database = {
         }
         Relationships: []
       }
+      contact_messages: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          message: string
+          name: string
+          topic: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          message: string
+          name: string
+          topic: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          message?: string
+          name?: string
+          topic?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      course_embeddings: {
+        Row: {
+          college_id: string
+          content_hash: string
+          course_id: string
+          embedded_at: string
+          embedding: string
+          model: string
+        }
+        Insert: {
+          college_id: string
+          content_hash: string
+          course_id: string
+          embedded_at?: string
+          embedding: string
+          model: string
+        }
+        Update: {
+          college_id?: string
+          content_hash?: string
+          course_id?: string
+          embedded_at?: string
+          embedding?: string
+          model?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_embeddings_college_id_fkey"
+            columns: ["college_id"]
+            isOneToOne: false
+            referencedRelation: "college_stats"
+            referencedColumns: ["college_id"]
+          },
+          {
+            foreignKeyName: "course_embeddings_college_id_fkey"
+            columns: ["college_id"]
+            isOneToOne: false
+            referencedRelation: "colleges"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_embeddings_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: true
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       course_sections: {
         Row: {
           course_id: string
@@ -797,6 +876,14 @@ export type Database = {
       }
     }
     Views: {
+      ai_cost_total: {
+        Row: {
+          call_count: number | null
+          cost_usd: number | null
+          total_tokens: number | null
+        }
+        Relationships: []
+      }
       college_ai_cost: {
         Row: {
           call_count: number | null
@@ -926,7 +1013,92 @@ export type Database = {
       }
     }
     Functions: {
-      [_ in never]: never
+      admin_course_list: {
+        Args: {
+          p_desc?: boolean
+          p_limit?: number
+          p_offset?: number
+          p_query?: string
+          p_sort?: string
+          p_tested?: string
+        }
+        Returns: {
+          attempts_taken: number
+          college_id: string
+          college_name: string
+          complete_test_sets: number
+          cost_usd: number
+          course_number: string
+          credits: string
+          department_code: string
+          department_name: string
+          has_summary: boolean
+          id: string
+          level: string
+          section_count: number
+          test_set_count: number
+          title: string
+          total_count: number
+        }[]
+      }
+      content_coverage: {
+        Args: { query_words: string[]; title_words: string[] }
+        Returns: number
+      }
+      course_content_words: { Args: { input: string }; Returns: string[] }
+      course_level: { Args: { course_number: string }; Returns: string }
+      search_courses: {
+        Args: {
+          p_college_id?: string
+          p_exclude_college_id?: string
+          p_limit?: number
+          p_per_college?: number
+          p_rank_by?: string
+          q: string
+        }
+        Returns: {
+          college_id: string
+          college_name: string
+          college_rank: number
+          college_short_name: string
+          complete_test_sets: number
+          course_id: string
+          course_number: string
+          coverage: number
+          department_code: string
+          department_id: string
+          department_name: string
+          exactness: number
+          has_sections: boolean
+          score: number
+          title: string
+        }[]
+      }
+      similar_courses: {
+        Args: {
+          p_course_id?: string
+          p_embedding?: string
+          p_exclude_college_id?: string
+          p_limit?: number
+          p_min_similarity?: number
+          p_per_college?: number
+        }
+        Returns: {
+          college_id: string
+          college_name: string
+          college_rank: number
+          college_short_name: string
+          complete_test_sets: number
+          course_id: string
+          course_number: string
+          department_code: string
+          department_id: string
+          department_name: string
+          has_sections: boolean
+          similarity: number
+          title: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

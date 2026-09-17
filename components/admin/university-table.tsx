@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
 import { ActivityCell } from '@/components/admin/activity-cell';
+import { SortableHead, useSortedRows } from '@/components/admin/sortable-head';
 import { BulkDialog, selectCandidates } from '@/components/admin/bulk-dialog';
 import { RetrievalDialog, type RetrievalMode } from '@/components/admin/retrieval-dialog';
 import { Badge } from '@/components/ui/badge';
@@ -18,6 +19,41 @@ import type { AdminCollegeRow, OperationSnapshot } from '@/lib/db/admin-queries'
 import { cn } from '@/lib/utils';
 
 type Filter = 'all' | 'indexed' | 'unindexed';
+
+type CollegeSort =
+  | 'rank'
+  | 'name'
+  | 'method'
+  | 'depts'
+  | 'courses'
+  | 'tests'
+  | 'taken'
+  | 'cost'
+  | 'activity';
+
+/** Rank and names read naturally ascending; counts, money and recency biggest-first. */
+const ASCENDING: CollegeSort[] = ['rank', 'name', 'method'];
+const descByDefault = (column: CollegeSort) => !ASCENDING.includes(column);
+
+function latestActivity(college: AdminCollegeRow): number | null {
+  const times = Object.values(college.operations as unknown as Record<string, OperationSnapshot>)
+    .map((op) => (op.at ? new Date(op.at).getTime() : 0))
+    .filter(Boolean);
+  return times.length ? Math.max(...times) : null;
+}
+
+const ACCESSORS: Record<CollegeSort, (college: AdminCollegeRow) => string | number | null> = {
+  rank: (c) => c.rank,
+  name: (c) => c.name,
+  method: (c) => catalogProvenance(c.platform, c.source)?.label ?? null,
+  // Coverage first, so "fully sourced" and "not started" separate cleanly.
+  depts: (c) => (c.departmentCount ? c.departmentsSourced / c.departmentCount + c.departmentCount / 1e6 : null),
+  courses: (c) => c.courseCount,
+  tests: (c) => c.testSetCount,
+  taken: (c) => c.attemptsTaken,
+  cost: (c) => c.costUsd,
+  activity: latestActivity,
+};
 
 export function UniversityTable({ colleges }: { colleges: AdminCollegeRow[] }) {
   const router = useRouter();
@@ -36,7 +72,7 @@ export function UniversityTable({ colleges }: { colleges: AdminCollegeRow[] }) {
     [colleges],
   );
 
-  const rows = useMemo(() => {
+  const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return colleges.filter((college) => {
       if (filter === 'indexed' && college.courseCount === 0) return false;
@@ -49,6 +85,22 @@ export function UniversityTable({ colleges }: { colleges: AdminCollegeRow[] }) {
       );
     });
   }, [colleges, query, filter]);
+
+  const { sorted: rows, sort, onSort } = useSortedRows<AdminCollegeRow, CollegeSort>(
+    filtered,
+    ACCESSORS,
+    { key: 'rank', desc: false },
+    descByDefault,
+  );
+
+  const head = (
+    column: CollegeSort,
+    label: string,
+    align: 'left' | 'right' = 'left',
+    extra: { className?: string; title?: string } = {},
+  ) => (
+    <SortableHead label={label} column={column} sort={sort} onSort={onSort} align={align} {...extra} />
+  );
 
   function launch(mode: RetrievalMode, college: AdminCollegeRow) {
     setRun({ mode, college });
@@ -96,17 +148,17 @@ export function UniversityTable({ colleges }: { colleges: AdminCollegeRow[] }) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-14">Rank</TableHead>
-              <TableHead>University</TableHead>
-              <TableHead>Retrieval method</TableHead>
-              <TableHead className="text-right" title="Departments sourced / all departments">
-                Depts
-              </TableHead>
-              <TableHead className="text-right">Courses</TableHead>
-              <TableHead className="text-right">Tests</TableHead>
-              <TableHead className="text-right">Taken</TableHead>
-              <TableHead className="text-right">Total AI cost</TableHead>
-              <TableHead className="w-[13rem]">Latest activity</TableHead>
+              {head('rank', 'Rank', 'left', { className: 'w-16' })}
+              {head('name', 'University')}
+              {head('method', 'Retrieval method')}
+              {head('depts', 'Depts', 'right', {
+                title: 'Departments sourced / all departments — sorts by share sourced',
+              })}
+              {head('courses', 'Courses', 'right')}
+              {head('tests', 'Tests', 'right')}
+              {head('taken', 'Taken', 'right')}
+              {head('cost', 'Total AI cost', 'right')}
+              {head('activity', 'Latest activity', 'left', { className: 'w-[13rem]' })}
               <TableHead className="w-[15rem]">Actions</TableHead>
             </TableRow>
           </TableHeader>

@@ -1,11 +1,26 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
-/** Paths that require a signed-in user. Browsing catalogs stays public. */
-const PROTECTED = [/^\/test\//, /^\/course\/[^/]+\/tests\/?$/];
+/**
+ * Pages that require a signed-in user. Signed-out visitors only get the home
+ * page's course check; universities, departments, courses and tests all sit
+ * behind sign-in.
+ */
+const PROTECTED = [/^\/college(\/|$)/, /^\/course(\/|$)/, /^\/test(\/|$)/];
+
+/**
+ * API routes behind those pages. They start catalog scrapes and AI calls, so
+ * they're closed to signed-out callers too. `/api/search` stays public — it
+ * backs the home page check and only reads what's stored.
+ */
+const PROTECTED_API = [/^\/api\/colleges\//, /^\/api\/courses\//, /^\/api\/departments\//];
 
 function isProtected(pathname: string): boolean {
   return PROTECTED.some((pattern) => pattern.test(pathname));
+}
+
+function isProtectedApi(pathname: string): boolean {
+  return PROTECTED_API.some((pattern) => pattern.test(pathname));
 }
 
 /** The admin console, which needs the admin role rather than just a session. */
@@ -64,6 +79,12 @@ export async function updateSession(request: NextRequest) {
       for (const cookie of response.cookies.getAll()) redirect.cookies.set(cookie);
       return redirect;
     }
+  }
+
+  if (!user && isProtectedApi(pathname)) {
+    const denied = NextResponse.json({ error: 'Sign in to continue.' }, { status: 401 });
+    for (const cookie of response.cookies.getAll()) denied.cookies.set(cookie);
+    return denied;
   }
 
   if (!user && isProtected(pathname)) {

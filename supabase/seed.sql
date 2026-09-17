@@ -1,5 +1,5 @@
 -- ============================================================================
--- CourseForge — seed data
+-- Aceversity — seed data
 -- Top 200 USA national universities (US News National Universities ranking order).
 -- Idempotent: re-running updates ranking/location metadata without disturbing
 -- any catalog discovery results already cached on the row.

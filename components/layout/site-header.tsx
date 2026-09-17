@@ -1,4 +1,4 @@
-import { GraduationCap } from 'lucide-react';
+import Image from 'next/image';
 import Link from 'next/link';
 
 import { signOut } from '@/app/actions/auth';
@@ -12,11 +12,20 @@ export async function SiteHeader() {
   return (
     <header className="no-print bg-background/80 sticky top-0 z-50 border-b backdrop-blur-sm">
       <div className="mx-auto flex h-14 w-full max-w-6xl items-center gap-3 px-4">
-        <Link href="/" className="flex items-center gap-2 font-semibold">
-          <span className="bg-primary text-primary-foreground flex size-7 items-center justify-center rounded-lg">
-            <GraduationCap className="size-4" />
-          </span>
-          CourseForge
+        {/* The wordmark's navy lettering disappears on the dark theme, so it sits on a light chip there. */}
+        <Link
+          href="/"
+          aria-label="Aceversity home"
+          className="flex items-center dark:rounded-md dark:bg-white dark:px-1.5 dark:py-0.5"
+        >
+          <Image
+            src="/logo-wordmark.png"
+            alt="Aceversity"
+            width={1732}
+            height={444}
+            priority
+            className="h-11 w-auto"
+          />
         </Link>
 
         <div className="flex-1" />

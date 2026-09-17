@@ -42,7 +42,7 @@ async function loadRules(origin: string): Promise<RobotsRules> {
 
       if (key === 'user-agent') {
         const agent = value.toLowerCase();
-        if (agent.includes('courseforge')) {
+        if (agent.includes('aceversity')) {
           // A block naming us specifically overrides anything matched via '*'.
           if (!sawOurAgent) {
             rules.disallow = [];

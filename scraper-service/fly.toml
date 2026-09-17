@@ -1,8 +1,8 @@
-# Example Fly.io deployment for the CourseForge scraper service.
+# Example Fly.io deployment for the Aceversity scraper service.
 #   fly launch --no-deploy --copy-config
 #   fly secrets set SCRAPER_SERVICE_SECRET=$(openssl rand -hex 32)
 #   fly deploy
-app = "courseforge-scraper"
+app = "aceversity-scraper"
 primary_region = "iad"
 
 [build]

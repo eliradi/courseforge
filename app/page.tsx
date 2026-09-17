@@ -1,7 +1,8 @@
 import { BookOpen, ListChecks, Search } from 'lucide-react';
 
-import { CollegePicker } from '@/components/college/college-picker';
+import { CourseFinder } from '@/components/college/course-finder';
 import { FavoritesSection } from '@/components/college/favorites-section';
+import { HomeSearch } from '@/components/college/home-search';
 import { TestHistorySection } from '@/components/dashboard/test-history';
 import {
   getCollegeStats,
@@ -56,20 +57,22 @@ export default async function HomePage() {
           {colleges.length} universities · live catalogs
         </p>
         <h1 className="text-4xl font-semibold sm:text-5xl">
-          Explore any college course.
+          <span className="text-primary">Explore any college course.</span>
           <br />
-          Then test yourself on it.
+          <span className="text-brand-teal">Then test yourself on it.</span>
         </h1>
         <p className="text-muted-foreground mx-auto mt-5 max-w-xl text-lg">
-          CourseForge reads a university&apos;s own course catalog, builds a full profile of the
+          Aceversity reads a university&apos;s own course catalog, builds a full profile of the
           course you pick, and generates a hundred practice questions for every section.
         </p>
 
         <div className="mx-auto mt-10 max-w-xl">
-          <CollegePicker colleges={options} signedIn={Boolean(user)} />
-          <p className="text-muted-foreground mt-3 text-xs">
-            Start typing — try &ldquo;MIT&rdquo;, &ldquo;Berkeley&rdquo;, or &ldquo;Texas&rdquo;.
-          </p>
+          {user ? (
+            <HomeSearch colleges={options} />
+          ) : (
+            // Signed-out visitors check a specific course before committing to anything.
+            <CourseFinder colleges={options} />
+          )}
         </div>
       </section>
 

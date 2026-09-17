@@ -1,10 +1,10 @@
-# CourseForge
+# Aceversity
 
 Browse the live course catalog of any top-200 US university, drill down to a
 single course, and generate 100 original practice questions for every section of
 it.
 
-CourseForge reads each school's **own** catalog — not a third-party dataset — by
+Aceversity reads each school's **own** catalog — not a third-party dataset — by
 fingerprinting the catalog platform and running a purpose-built adapter against
 it. Everything it scrapes is cached and shared, so the second visitor to a
 college pays nothing.
@@ -54,8 +54,8 @@ pnpm db:seed                      # inserts the 200 colleges
 
 # 2. scraper service (separate terminal)
 cd scraper-service
-docker build -t courseforge-scraper .
-docker run --rm -p 8080:8080 -e SCRAPER_SERVICE_SECRET=dev-secret courseforge-scraper
+docker build -t aceversity-scraper .
+docker run --rm -p 8080:8080 -e SCRAPER_SERVICE_SECRET=dev-secret aceversity-scraper
 
 # 3. app
 pnpm dev                          # http://localhost:3000
@@ -236,9 +236,9 @@ bounces non-admins before the page renders, and every page re-checks server-side
 | Tab | Shows |
 |---|---|
 | **Overview** | Users, indexed/seeded universities, cached courses, total AI spend, test sets, questions, attempts. |
-| **Users** | Each account's info, favourites, tests created and taken, average/best score, recent results, and AI cost. |
-| **Universities** | All 200 with retrieval method, department coverage (`sourced/total`, amber when incomplete; hover for how many hold courses), courses, tests, attempts, total AI cost, and a **Latest activity** cell showing when each of the four tracked operations last ran here and what that run cost. **Check method** and **Retrieve** open a live dialog (below). |
-| **Courses** | Every cached course with its university, department, derived level, whether tests exist (complete/total), how many people have taken them, and AI cost. |
+| **Users** | A searchable table (email, user id, favourite) sortable on every column — joined, last seen, favourites, tests made, taken, average/best score, AI calls and cost. Click a row for favourites and recent results. |
+| **Universities** | All 200 with retrieval method, department coverage (`sourced/total`, amber when incomplete; hover for how many hold courses), courses, tests, attempts, total AI cost, and a **Latest activity** cell showing when each of the four tracked operations last ran here and what that run cost. Every column sorts (Depts by share sourced, Latest activity by most recent run). **Check method** and **Retrieve** open a live dialog (below). |
+| **Courses** | Every cached course (total shown at the top) with its university, department, derived level, sections, whether tests exist (complete/total), how many people have taken them, and AI cost. 500 per page; search, the tested/untested filter, sort column and page live in the URL, and the database does the work (`admin_course_list`, migration 0014), so sorting on tests or cost covers all courses, not just the page. |
 
 Create or repair the account with:
 
@@ -341,6 +341,95 @@ HTML page whose answer key is hidden by the print stylesheet.
 
 ---
 
+## Checking a course
+
+Signed-out visitors get a two-step check on the home page instead of a plain
+college picker: **choose a university, type a course name or number**, and the
+answer appears as they type.
+
+- **Yes — this course is in our system**, with its department, whether practice
+  tests already exist.
+- **No exact match** — the closest courses held there, any of which can be picked.
+- **Not in our system (yet)** — worded by how much of the university we've read,
+  so "we've read 6 of 46 departments" isn't mistaken for a definite no.
+- **Catalog not read yet** — with a prompt to sign in and open the university.
+
+For signed-out visitors the check links nowhere: university, department, course
+and test pages all need sign-in, and "similar courses at other universities" are
+listed as plain text.
+
+Signed-in users get the same check as the **Check a course** tab on the home page,
+next to **Browse universities** (the original picker). There every result links
+through — *View course*, each similar course, and *Browse … departments* — and the
+wording says "open the course" rather than "sign in". The last tab used is
+remembered per browser. Both modes are `components/college/course-finder.tsx`
+with a `signedIn` flag, wrapped by `components/college/home-search.tsx`.
+
+### Similar courses at other universities
+
+Found by **meaning**, not shared title words. Every course has an embedding
+(`openai/text-embedding-3-small` via the AI Gateway) of its title, department
+and description, stored in `course_embeddings` (pgvector, HNSW index) and
+queried through the `similar_courses` SQL function.
+
+- When the check finds the course, similar courses are the ones closest to
+  **that course's** embedding — so searching "6.7900" finds machine-learning
+  courses elsewhere, not other courses numbered 6.7900.
+- Otherwise the **typed text** is embedded (cached in memory; ~$0.0000002 a
+  lookup, recorded as `search_embedding`) and compared instead.
+- Title-word matches fill any remaining slots, and are the whole answer when
+  embeddings are unavailable. The response says which was used
+  (`elsewhereMethod`), and the page words its explanation to match.
+- Thresholds live in `app/api/search/courses/route.ts`
+  (`MIN_SIMILARITY_TO_COURSE`, `MIN_SIMILARITY_TO_QUERY`).
+
+Keeping it current: scraping a department embeds its courses, and re-reading a
+course's catalog entry re-embeds it. A content hash skips unchanged courses, so
+repeat scrapes cost nothing. Costs are recorded as `course_embedding` under the
+course's university.
+
+```bash
+pnpm embed-courses --dry-run   # courses, tokens and cost if all were new
+pnpm embed-courses             # embed everything new or changed (~30k courses ≈ $0.04)
+```
+
+Run it once after applying migration `0013`, and again after changing
+`AI_EMBEDDING_MODEL` (the replacement must return 1536 dimensions).
+
+Below the answer, **similar courses at other universities** are listed with their
+practice-test counts.
+
+It's a read of stored data only — nothing on this page triggers a scrape.
+`search_courses` (migration `0012`) does the matching with pg_trgm, in about
+20 ms over 30k courses:
+
+- **Finding the course** ranks by how well the query matches, and treats a result
+  as *the* course only when it names every distinctive word typed and clearly
+  beats the next differently-titled course. Cross-listed copies share a title and
+  count as one.
+- **Similar courses** compare only the distinctive words — generic ones such as
+  *Introduction to* or *Fundamentals of* are ignored, and every distinctive word
+  the visitor typed must appear. Whole-title trigram scores couldn't separate
+  "Introduction to Psychology" from "Introduction to Africology".
+- A few unambiguous abbreviations are expanded first (`intro`, `adv`, `prin`, …).
+
+## Repairing untitled courses
+
+An older CourseLeaf parser missed the newer "detail" layout, where code, title and
+credits sit in separate `detail-code` / `detail-title` / `detail-hours` spans
+(Notre Dame, UNC, Georgetown, UT Austin), plus MIT's `1.63[J]` and Iowa's
+`ACCT:3500 … s.h.` headings. About a third of stored courses ended up with their
+code as their title, which makes them unsearchable by name.
+
+The parser is fixed. Existing rows are repaired with:
+
+```bash
+pnpm repair-titles           # dry run: which departments, how many rows
+pnpm repair-titles --apply   # refresh them and remove superseded rows
+```
+
+A superseded row is only removed if nothing (sections, tests) refers to it.
+
 ## Troubleshooting
 
 **A site is behind bot protection.** Some catalogs (Gonzaga, for one) answer every
@@ -363,8 +452,11 @@ server with a clean cache:
 rm -rf .next && pnpm dev
 ```
 
-**Never run `pnpm build` while `pnpm dev` is running** — they share `.next` and
-the build will pull the chunks out from under the dev server.
+`pnpm build` and `pnpm dev` no longer share an output directory: local
+production builds go to `.next-build/` (see `next.config.ts`), so building while
+the dev server runs is safe. If a `ChunkLoadError` still appears, check that only
+one dev server is running for this project — two servers on the same `.next`
+(the second one silently moves to port 3001) delete each other's chunks.
 
 ## Security and data model
 
@@ -378,13 +470,16 @@ the build will pull the chunks out from under the dev server.
 - **Admin-only**: `ai_usage`, `operation_runs` and the `*_ai_cost` /
   `college_stats` / `college_latest_operations` views have no anon/authenticated
   grants at all and are read with the service role.
-- Browsing is public; **generating and taking tests requires sign-in**
-  (Supabase magic link).
+- **Everything except the home page's course check requires sign-in**
+  (Supabase magic link). `middleware.ts` redirects signed-out visitors from
+  `/college/*`, `/course/*` and `/test/*` to the login page, and answers the
+  scrape-triggering `/api/colleges/*`, `/api/departments/*` and
+  `/api/courses/*` with 401. `/api/search/courses` stays public.
 
 ## Scraping etiquette
 
 - One in-flight request per host with a 1.5 s gap; global concurrency 3.
-- Honest `CourseForgeBot/1.0` User-Agent, and `robots.txt` `Disallow` rules are
+- Honest `AceversityBot/1.0` User-Agent, and `robots.txt` `Disallow` rules are
   honoured (longest-match wins, `Allow` beats `Disallow` at equal length).
 - 30 s timeout per call and one retry with backoff; on final failure a debug
   screenshot is captured and the user sees a real error with a retry and the

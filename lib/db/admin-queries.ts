@@ -278,6 +278,9 @@ export interface AdminCourseRow {
  * four-digit schemes put the tier in the leading digit (CS 229 -> 2xx, CS 5840 ->
  * 5xxx), while two-digit schemes (Stanford's AFRICAAM 10) run 1-99 flat. MIT-style
  * dotted numbers carry the tier after the dot (6.1010 -> 1xxx).
+ *
+ * The admin course list computes this in SQL (`public.course_level`, migration
+ * 0014) so it can sort on it; keep the two in step.
  */
 export function courseLevel(courseNumber: string): string {
   const dotted = courseNumber.match(/\.\s*(\d+)/);
@@ -303,77 +306,92 @@ export function courseLevel(courseNumber: string): string {
   return 'Graduate';
 }
 
-export async function listAdminCourses(limit = 1000): Promise<AdminCourseRow[]> {
+export const COURSE_SORTS = [
+  'course',
+  'title',
+  'university',
+  'department',
+  'level',
+  'sections',
+  'tests',
+  'taken',
+  'cost',
+] as const;
+export type CourseSort = (typeof COURSE_SORTS)[number];
+
+export const COURSE_FILTERS = ['all', 'tested', 'untested'] as const;
+export type CourseFilter = (typeof COURSE_FILTERS)[number];
+
+export const COURSE_PAGE_SIZE = 500;
+
+export interface AdminCourseQuery {
+  query?: string;
+  filter?: CourseFilter;
+  sort?: CourseSort;
+  desc?: boolean;
+  page?: number;
+}
+
+export interface AdminCoursePage {
+  rows: AdminCourseRow[];
+  /** Courses matching the search and filter. */
+  matching: number;
+  /** Every course in the database. */
+  total: number;
+  page: number;
+  pageCount: number;
+  pageSize: number;
+}
+
+/**
+ * One page of the admin course list. Filtering, sorting (including on test,
+ * attempt and cost aggregates) and paging all happen in `admin_course_list`.
+ */
+export async function listAdminCourses(options: AdminCourseQuery = {}): Promise<AdminCoursePage> {
   const admin = createAdminClient();
+  const page = Math.max(1, Math.floor(options.page ?? 1));
 
-  const { data: courses } = await admin
-    .from('courses')
-    .select(
-      'id, course_number, title, credits, ai_summary, course_sections(id), departments!inner(code, name, colleges!inner(id, name, short_name))',
-    )
-    .order('course_number')
-    .limit(limit);
-
-  if (!courses?.length) return [];
-
-  const [testSets, costs] = await Promise.all([
-    admin
-      .from('test_sets')
-      .select('id, status, course_sections!inner(course_id), attempts(id, submitted_at)'),
-    // Aggregated in the database — a `.in(...)` over every course id overflows
-    // the PostgREST query string once a catalog is a few hundred courses deep.
-    admin.from('course_ai_cost').select('course_id, cost_usd'),
+  const [list, totalCount] = await Promise.all([
+    admin.rpc('admin_course_list', {
+      p_query: options.query?.trim() || undefined,
+      p_tested: options.filter ?? 'all',
+      p_sort: options.sort ?? 'course',
+      p_desc: options.desc ?? false,
+      p_limit: COURSE_PAGE_SIZE,
+      p_offset: (page - 1) * COURSE_PAGE_SIZE,
+    }),
+    admin.from('courses').select('id', { count: 'exact', head: true }),
   ]);
 
-  interface TestSetRow {
-    id: string;
-    status: string;
-    course_sections: { course_id: string };
-    attempts: Array<{ id: string; submitted_at: string | null }> | null;
-  }
+  if (list.error) throw new Error(`Could not list courses: ${list.error.message}`);
 
-  const byCourse = new Map<string, { total: number; complete: number; attempts: number }>();
-  for (const row of (testSets.data ?? []) as unknown as TestSetRow[]) {
-    const courseId = row.course_sections.course_id;
-    const entry = byCourse.get(courseId) ?? { total: 0, complete: 0, attempts: 0 };
-    entry.total++;
-    if (row.status === 'complete') entry.complete++;
-    entry.attempts += (row.attempts ?? []).filter((a) => a.submitted_at).length;
-    byCourse.set(courseId, entry);
-  }
+  const data = list.data ?? [];
+  const matching = Number(data[0]?.total_count ?? 0);
 
-  const costByCourse = new Map<string, number>();
-  for (const row of costs.data ?? []) {
-    if (!row.course_id) continue;
-    costByCourse.set(row.course_id, Number(row.cost_usd ?? 0));
-  }
-
-  return courses.map((course) => {
-    const department = course.departments as unknown as {
-      code: string;
-      name: string;
-      colleges: { id: string; name: string; short_name: string | null };
-    };
-    const tests = byCourse.get(course.id) ?? { total: 0, complete: 0, attempts: 0 };
-
-    return {
-      id: course.id,
-      courseNumber: course.course_number,
-      title: course.title,
-      level: courseLevel(course.course_number),
-      credits: course.credits,
-      departmentCode: department.code,
-      departmentName: department.name,
-      collegeName: department.colleges.short_name ?? department.colleges.name,
-      collegeId: department.colleges.id,
-      sectionCount: (course.course_sections as Array<{ id: string }> | null)?.length ?? 0,
-      testSetCount: tests.total,
-      completeTestSets: tests.complete,
-      attemptsTaken: tests.attempts,
-      costUsd: costByCourse.get(course.id) ?? 0,
-      hasSummary: Boolean(course.ai_summary),
-    };
-  });
+  return {
+    rows: data.map((row) => ({
+      id: row.id,
+      courseNumber: row.course_number,
+      title: row.title,
+      level: row.level,
+      credits: row.credits,
+      departmentCode: row.department_code,
+      departmentName: row.department_name,
+      collegeName: row.college_name,
+      collegeId: row.college_id,
+      sectionCount: row.section_count,
+      testSetCount: row.test_set_count,
+      completeTestSets: row.complete_test_sets,
+      attemptsTaken: row.attempts_taken,
+      costUsd: Number(row.cost_usd ?? 0),
+      hasSummary: row.has_summary,
+    })),
+    matching,
+    total: totalCount.count ?? 0,
+    page,
+    pageCount: Math.max(1, Math.ceil(matching / COURSE_PAGE_SIZE)),
+    pageSize: COURSE_PAGE_SIZE,
+  };
 }
 
 /* -------------------------------------------------------------- dashboard */
@@ -407,18 +425,16 @@ export async function getAdminTotals(): Promise<AdminTotals> {
       count('test_sets'),
       count('questions'),
       count('attempts'),
-      admin.from('ai_usage').select('total_tokens, cost_usd'),
+      // Summed in the database — the ledger is far past PostgREST's 1000-row cap.
+      admin.from('ai_cost_total').select('call_count, total_tokens, cost_usd').maybeSingle(),
       admin.from('college_stats').select('course_count'),
     ]);
 
-  const totals = (usage.data ?? []).reduce(
-    (acc, row) => ({
-      calls: acc.calls + 1,
-      tokens: acc.tokens + (row.total_tokens ?? 0),
-      cost: acc.cost + Number(row.cost_usd ?? 0),
-    }),
-    { calls: 0, tokens: 0, cost: 0 },
-  );
+  const totals = {
+    calls: Number(usage.data?.call_count ?? 0),
+    tokens: Number(usage.data?.total_tokens ?? 0),
+    cost: Number(usage.data?.cost_usd ?? 0),
+  };
 
   return {
     users: authData.data?.users.length ?? 0,

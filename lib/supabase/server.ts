@@ -1,13 +1,27 @@
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
+import { createClient as createPlainClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
 /**
  * Request-scoped Supabase client carrying the user's session.
  * Subject to RLS — use this for anything the signed-in user should be able to see.
+ *
+ * Outside a request (CLI scripts such as `pnpm repair-titles`) there are no
+ * cookies, so this returns a signed-out client instead: still RLS-bound, which
+ * is all the shared catalog reads in the scraping pipeline need.
  */
 export async function createClient() {
-  const cookieStore = await cookies();
+  let cookieStore: Awaited<ReturnType<typeof cookies>>;
+  try {
+    cookieStore = await cookies();
+  } catch {
+    return createPlainClient<Database>(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { auth: { persistSession: false, autoRefreshToken: false } },
+    );
+  }
 
   return createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

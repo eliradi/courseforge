@@ -29,8 +29,8 @@ export const HEARTBEAT_STALE_MS = 90_000;
  * Kept on globalThis because dev-mode recompiles re-evaluate this module, and a
  * fresh Set would make a still-running job look abandoned.
  */
-const globalForBulk = globalThis as unknown as { __courseforgeBulkRunners?: Set<string> };
-const active = (globalForBulk.__courseforgeBulkRunners ??= new Set<string>());
+const globalForBulk = globalThis as unknown as { __aceversityBulkRunners?: Set<string> };
+const active = (globalForBulk.__aceversityBulkRunners ??= new Set<string>());
 
 export function isRunnerActive(jobId: string): boolean {
   return active.has(jobId);

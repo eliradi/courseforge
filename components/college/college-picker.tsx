@@ -30,9 +30,17 @@ export interface CollegeOption extends College {
 export function CollegePicker({
   colleges,
   signedIn,
+  onSelect,
+  placeholder = 'Search all 200 colleges…',
 }: {
   colleges: CollegeOption[];
   signedIn: boolean;
+  /**
+   * When given, choosing a college calls this instead of navigating to it —
+   * used by the public course check, where picking a college is step one.
+   */
+  onSelect?: (college: CollegeOption) => void;
+  placeholder?: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -49,9 +57,13 @@ export function CollegePicker({
     [colleges],
   );
 
-  function choose(college: College) {
+  function choose(college: CollegeOption) {
     setSelectedId(college.id);
     setOpen(false);
+    if (onSelect) {
+      onSelect(college);
+      return;
+    }
     startTransition(() => router.push(`/college/${college.id}`));
   }
 
@@ -74,7 +86,7 @@ export function CollegePicker({
             <Search className="text-muted-foreground size-5 shrink-0" />
           )}
           <span className={cn('truncate', !selected && 'text-muted-foreground')}>
-            {selected ? selected.name : 'Search all 200 colleges…'}
+            {selected ? selected.name : placeholder}
           </span>
         </span>
         <ChevronsUpDown className="text-muted-foreground size-4 shrink-0" />

@@ -87,7 +87,7 @@ const LEVEL_STYLES: Record<TraceLine['level'], { icon: typeof Info; className: s
 };
 
 const CONSOLE_STYLES: Record<TraceLine['level'], string> = {
-  step: 'color:#6366f1;font-weight:600',
+  step: 'color:#115388;font-weight:600',
   request: 'color:#64748b',
   info: 'color:#64748b',
   success: 'color:#059669;font-weight:600',
@@ -179,7 +179,7 @@ export function BulkDialog({
       setConnection('connecting');
 
       if (!groupOpenRef.current) {
-        console.groupCollapsed(`%c[CourseForge] Bulk job ${jobId.slice(0, 8)}`, 'color:#6366f1;font-weight:700');
+        console.groupCollapsed(`%c[Aceversity] Bulk job ${jobId.slice(0, 8)}`, 'color:#115388;font-weight:700');
         groupOpenRef.current = true;
       }
 
@@ -232,7 +232,7 @@ export function BulkDialog({
           return;
         }
         setConnection('reconnecting');
-        console.warn('[CourseForge] connection to the job dropped — reconnecting; the job keeps running.');
+        console.warn('[Aceversity] connection to the job dropped — reconnecting; the job keeps running.');
       };
     },
     [closeStream],
@@ -298,7 +298,7 @@ export function BulkDialog({
       if (!response.ok || !body.job) throw new Error(body.error ?? `Server responded ${response.status}`);
 
       console.info(
-        '[CourseForge] bulk job started',
+        '[Aceversity] bulk job started',
         body.job.id,
         `ranks ${rankFrom}-${rankTo} · stale ${staleDays}d · max ${maxColleges} · ` +
           `${allDepartments ? 'all' : departmentLimit} depts · partial ${includePartial}`,

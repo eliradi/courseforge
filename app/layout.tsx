@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 
+import { SiteFooter } from '@/components/layout/site-footer';
 import { SiteHeader } from '@/components/layout/site-header';
 import { ThemeProvider } from '@/components/layout/theme-provider';
 import { Toaster } from '@/components/ui/sonner';
@@ -16,8 +17,8 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: 'CourseForge — Explore college courses and build practice tests',
-    template: '%s · CourseForge',
+    default: 'Aceversity — Explore college courses and build practice tests',
+    template: '%s · Aceversity',
   },
   description:
     'Browse the course catalog of any top-200 US university, then generate 100 practice questions for every section of a course.',
@@ -31,10 +32,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <TooltipProvider delay={200}>
             <SiteHeader />
             <main className="flex-1">{children}</main>
-            <footer className="no-print text-muted-foreground border-t py-6 text-center text-xs">
-              CourseForge scrapes only public catalog pages and stores extracted facts, never
-              copyrighted book content.
-            </footer>
+            <SiteFooter />
           </TooltipProvider>
           <Toaster richColors closeButton position="bottom-right" />
         </ThemeProvider>

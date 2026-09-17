@@ -1,4 +1,4 @@
-# CourseForge scraper service
+# Aceversity scraper service
 
 A small, self-hosted Hono + Playwright service. It is the **only** component that
 touches Chromium — the Next.js app never launches a browser, which is what keeps
@@ -46,7 +46,7 @@ PORT=8080
 SCRAPER_SERVICE_SECRET=        # required; shared with the Next.js app
 MAX_CONCURRENT_CONTEXTS=3
 DEFAULT_TIMEOUT_MS=30000
-SCRAPER_USER_AGENT=CourseForgeBot/1.0 (+https://example.com/bot)
+SCRAPER_USER_AGENT=AceversityBot/1.0 (+https://example.com/bot)
 ```
 
 ## Local development
@@ -60,8 +60,8 @@ SCRAPER_SERVICE_SECRET=dev-secret npm run dev
 Or through Docker, which is what production runs:
 
 ```bash
-docker build -t courseforge-scraper .
-docker run --rm -p 8080:8080 -e SCRAPER_SERVICE_SECRET=dev-secret courseforge-scraper
+docker build -t aceversity-scraper .
+docker run --rm -p 8080:8080 -e SCRAPER_SERVICE_SECRET=dev-secret aceversity-scraper
 curl localhost:8080/health
 ```
 

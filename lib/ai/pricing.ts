@@ -17,6 +17,7 @@ const RATES: Record<string, Rate> = {
   'anthropic/claude-haiku-4.5': { input: 1, output: 5 },
   'anthropic/claude-sonnet-5': { input: 2, output: 10 },
   'anthropic/claude-opus-5': { input: 5, output: 25 },
+  'openai/text-embedding-3-small': { input: 0.02, output: 0 },
 };
 
 /** Used when a model id has no entry, so an unknown model still records tokens. */

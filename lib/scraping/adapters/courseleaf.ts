@@ -362,28 +362,73 @@ function dedupeCodes(departments: DepartmentRaw[]): DepartmentRaw[] {
   });
 }
 
-function parseCourseBlocks(html: string, baseUrl: string, deptCode?: string): CourseRaw[] {
+/**
+ * CourseLeaf's newer layout splits the heading into separate spans instead of
+ * one `.courseblocktitle`:
+ *
+ *   <span class="detail-code">CBE 20255</span>        (UT Austin: detail-ut_code)
+ *   <span class="detail-title">Introduction to …</span>
+ *   <span class="detail-hours_html">(3 Credit Hours)</span>
+ *
+ * Reading only the first <strong> there yielded the bare code, so every course
+ * at Notre Dame, UNC, Georgetown and UT Austin was stored with its code as its
+ * title — about a third of all courses, and unsearchable by name.
+ */
+function detailHeading(
+  $: cheerio.CheerioAPI,
+  block: ReturnType<cheerio.CheerioAPI>,
+): { course_number: string; title: string; credits: string | null } | null {
+  const hasToken = (el: unknown, pattern: RegExp) =>
+    ($(el as never).attr('class') ?? '').split(/\s+/).some((token) => pattern.test(token));
+
+  const titleEl = block.find('span, div').filter((_i, el) => hasToken(el, /^detail-title$/)).first();
+  const codeEl = block.find('span, div').filter((_i, el) => hasToken(el, /^detail-\w*code$/)).first();
+  if (!titleEl.length || !codeEl.length) return null;
+
+  const course_number = clean(codeEl.text()).replace(/[.\s]+$/, '');
+  const title = clean(titleEl.text()).replace(/\.$/, '');
+  if (!course_number || !title) return null;
+
+  const hoursEl = block.find('span, div').filter((_i, el) => hasToken(el, /^detail-hours/)).first();
+  const credits =
+    clean(hoursEl.text())
+      .replace(/^\((.*)\)$/, '$1')
+      .replace(/\.$/, '') || null;
+
+  return { course_number, title, credits };
+}
+
+export function parseCourseBlocks(html: string, baseUrl: string, deptCode?: string): CourseRaw[] {
   const $ = cheerio.load(html);
   const courses: CourseRaw[] = [];
 
   $('.courseblock').each((_i, el) => {
     const block = $(el);
-    // Raw, not cleaned — parseCourseHeading needs the original spacing.
-    const titleText =
-      block.find('.courseblocktitle').first().text() || block.find('h3, h4, strong').first().text();
-    if (!clean(titleText)) return;
 
-    const heading = parseCourseHeading(titleText, deptCode);
+    let heading = detailHeading($, block) as (ParsedHeading | null);
+    if (!heading) {
+      // Classic layout. Raw text, not cleaned — parseCourseHeading needs the spacing.
+      const titleText =
+        block.find('.courseblocktitle').first().text() || block.find('h3, h4, strong').first().text();
+      if (!clean(titleText)) return;
+      heading = parseCourseHeading(titleText, deptCode);
+    } else {
+      heading = { ...heading, instructors: null };
+    }
     if (!heading) return;
     const { course_number, title, credits } = heading;
 
-    const description = clean(block.find('.courseblockdesc').first().text());
+    // The detail layout keeps the description in .courseblockextra.
+    const description = clean(
+      block.find('.courseblockdesc').first().text() ||
+        block.find('.courseblockextra').first().text(),
+    );
 
     // CourseLeaf tags these fields explicitly on most installs — far more
     // reliable than mining the description prose. When the tag is present we
     // trust it outright, including when it says "None"; only an absent tag
     // falls through to regex mining.
-    const prereqEl = block.find('.courseblockprereq').first();
+    const prereqEl = block.find('.courseblockprereq, [class*="detail-prerequisites"]').first();
     const taggedPrereq = clean(prereqEl.text());
     const taggedTerms = clean(block.find('.courseblockterms').first().text());
     const taggedHours = clean(block.find('.courseblockhours').first().text());
@@ -402,7 +447,7 @@ function parseCourseBlocks(html: string, baseUrl: string, deptCode?: string): Co
       description: description || null,
       credits: credits ?? taggedHours ?? extractCredits(block.text()),
       prerequisites: prereqEl.length
-        ? stripLabel(taggedPrereq, /^pre-?req(uisite)?s?\s*[:\-–]?\s*/i)
+        ? stripLabel(taggedPrereq, /^pre-?req(uisite)?s?\s*[:\-–]?\s*/i)?.replace(/^\((.*)\)$/, '$1') ?? null
         : extractPrerequisites(prose),
       terms_offered: taggedTerms || extractTerms(prose),
       instructors:
@@ -434,6 +479,9 @@ export interface ParsedHeading {
  * `raw` must NOT have had its whitespace collapsed: the double space before the
  * instructor is the only thing separating them from the title.
  */
+/** A heading field that is the credit value ("3 Credits", "0-16 Credits", "1.5 hours."), not a name. */
+const CREDITS_CHUNK = /^\d[\d.]*(\s*[-–]\s*\d[\d.]*)?\s*(credits?|credit hours?|hours?|units?|s\.h\.)\.?$/i;
+
 export function parseCourseHeading(raw: string, deptCode?: string): ParsedHeading | null {
   const heading = raw
     .replace(/\u00a0/g, ' ')
@@ -462,16 +510,27 @@ export function parseCourseHeading(raw: string, deptCode?: string): ParsedHeadin
     const course_number =
       (prefix && codes.find((code) => code.toUpperCase().startsWith(prefix))) || codes[0];
 
-    const [rawTitle, ...rest] = heading.slice(comma + 1).replace(/^\s+/, '').split(/\s{2,}/);
-    const withoutCredits = splitCourseTitle(clean(rawTitle));
-    const title = clean(rawTitle) === withoutCredits.title ? clean(rawTitle) : withoutCredits.title;
+    // Fields are separated by runs of spaces, sometimes after a comma:
+    // "CPSC 201a, Introduction to Computer Science  Jane Doe" (Yale) or
+    // "AEC 122,  +INTRO TO CLIMATE ECONOMICS,  3 Credits" (Oregon State).
+    const [rawTitle, ...rest] = heading.slice(comma + 1).replace(/^\s+/, '').split(/,?\s{2,}/);
+    const cleanedTitle = clean(rawTitle)
+      // Leading footnote markers ("+" = career course, "*" = core requirement, …).
+      .replace(/^[+*^#†‡§]+\s*/, '')
+      .replace(/[,;]+$/, '')
+      .trim();
+    const withoutCredits = splitCourseTitle(cleanedTitle);
+    const title = cleanedTitle === withoutCredits.title ? cleanedTitle : withoutCredits.title;
     if (!title) return null;
+
+    const creditsChunk = rest.map((chunk) => clean(chunk)).find((chunk) => CREDITS_CHUNK.test(chunk));
+    const names = rest.filter((chunk) => !CREDITS_CHUNK.test(clean(chunk)));
 
     return {
       course_number,
       title,
-      credits: withoutCredits.credits,
-      instructors: namesFrom(rest),
+      credits: withoutCredits.credits ?? creditsChunk ?? null,
+      instructors: namesFrom(names),
     };
   }
 
@@ -480,13 +539,19 @@ export function parseCourseHeading(raw: string, deptCode?: string): ParsedHeadin
   // the whole heading goes to splitCourseTitle rather than being split first.
   const parsed = splitCourseTitle(clean(heading));
   if (!parsed.course_number || !parsed.title) return null;
+  // A comma-form heading whose "code" isn't one (Oregon State's "AEC LDEA,
+  // LOWER DIVISION ED ABROAD" placeholders) is not a course.
+  if (parsed.course_number.includes(',')) return null;
 
   return { ...parsed, instructors: null };
 }
 
-/** "ANTH 1171a", "CS 100", "6.1010" — a bare code, not a code plus prose. */
+/** "ANTH 1171a", "CS 100", "ACCT:3500", "6.1010", "1.63[J]" — a bare code, not a code plus prose. */
 function isCourseCode(value: string): boolean {
-  return /^[A-Za-z][A-Za-z&.]{0,9}\s?\d[\w.\-]*$/.test(value) || /^\d+[A-Za-z]?(\.[\w.]+)?$/.test(value);
+  return (
+    /^[A-Za-z][A-Za-z&.]{0,9}[\s:]?\d[\w.\-]*(\[[A-Z]\])?$/.test(value) ||
+    /^\d+[A-Za-z]?(\.[\w.]+)?(\[[A-Z]\])?$/.test(value)
+  );
 }
 
 function namesFrom(chunks: string[]): string[] | null {

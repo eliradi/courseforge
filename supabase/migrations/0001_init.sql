@@ -1,5 +1,5 @@
 -- ============================================================================
--- CourseForge — initial schema
+-- Aceversity — initial schema
 -- ============================================================================
 -- Shared scrape cache (colleges/departments/courses/textbooks/course_sections)
 -- is public-read; all writes go through server actions using the service role.

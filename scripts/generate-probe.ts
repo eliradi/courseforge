@@ -8,7 +8,7 @@
 import { generateTestSet } from '../lib/ai/generate-questions';
 import { createAdminClient } from '../lib/supabase/admin';
 
-const TEST_EMAIL = 'courseforge-verify@example.com';
+const TEST_EMAIL = 'aceversity-verify@example.com';
 
 async function ensureUser(): Promise<string> {
   const admin = createAdminClient();
@@ -18,7 +18,7 @@ async function ensureUser(): Promise<string> {
 
   const { data, error } = await admin.auth.admin.createUser({
     email: TEST_EMAIL,
-    password: 'courseforge-verify-pw-1',
+    password: 'aceversity-verify-pw-1',
     email_confirm: true,
   });
   if (error || !data.user) throw error ?? new Error('could not create verification user');
